@@ -211,7 +211,7 @@ The sidebar menu is a **flat, single-level list**. There are no nested submenus 
 
 | Menu Item | Panel Tabs |
 |-----------|-----------|
-| Interfaces | Ethernet, Bonding, Bridge, Dummy, Loopback, Tunnel, VXLAN, L2TPv3, VTI, GENEVE, Pseudo-Ethernet, Virtual-Ethernet, Wireless, WWAN, OpenVPN, WireGuard, PPPoE, SSTP Client |
+| Interfaces | *(Unified table — see Section 8.3)* |
 | Firewall | IPv4 Rules, IPv6 Rules, Bridge Rules, Groups, Zones, Flow Tables, Global Options |
 | NAT | NAT44 (Source / Destination), NAT64, NAT66, CGNAT |
 | Routing / Protocols | Static Routes, BGP, OSPF, OSPFv3, ISIS, RIP, Babel, BFD, MPLS, Segment Routing, IGMP Proxy, PIM / PIM6, Multicast, RPKI, Failover |
@@ -227,7 +227,104 @@ The sidebar menu is a **flat, single-level list**. There are no nested submenus 
 | System | Host Name / Domain, DNS / Name Servers, Time Zone / NTP, Login / Users, Syslog, Conntrack, IP / IPv6 Settings, Console, Task Scheduler, Watchdog, Options, Acceleration, Updates, Image Management |
 | Operations | System Info, Reboot / Poweroff, Show Commands (freeform) |
 
-### 8.2 Panel Design Principles
+### 8.2 Interfaces Panel — Unified Table with Tree View
+
+The Interfaces panel does **not** use the standard tab bar. Instead, it displays a **single unified table** listing all configured interfaces across all types.
+
+#### Table Columns
+
+| Column | Content |
+|--------|---------|
+| Name | Interface name (e.g., `eth0`, `bond0`, `br0`) |
+| Type | Interface type icon + label (Ethernet, Bridge, Bond, etc.) |
+| Status | Link state (up/down), from operational data |
+| Address | Configured IP address(es) |
+| Description | User-set description |
+| VRF | VRF membership (if any) |
+| Actions | Edit, Delete |
+
+#### Tree Structure
+
+Interfaces that are bound to a parent are rendered as **indented children** under their parent row. The tree is collapsible.
+
+Parent-child relationships displayed in the tree:
+
+| Parent Type | Child Type | Binding Field |
+|-------------|------------|---------------|
+| Ethernet / Bonding | VLAN (vif) | Sub-interface (e.g., `eth0.10`) |
+| Bonding | Ethernet | `member interface` |
+| Bridge | Ethernet, Bonding, VLAN | `member interface` |
+| Any physical/bond/bridge | PPPoE | `source-interface` |
+| Any physical | Pseudo-Ethernet | `source-interface` |
+| Any physical / VXLAN | MACsec | `source-interface` |
+| Any physical / Dummy | VXLAN | `source-interface` |
+
+Unbound interfaces (Loopback, Dummy, Tunnel, WireGuard, OpenVPN, VTI, GENEVE, L2TPv3, Virtual-Ethernet, Wireless, WWAN, SSTP Client) appear as top-level rows.
+
+#### Toolbar
+
+A toolbar above the table provides:
+- A **type filter** dropdown to show/hide interface types.
+- A **search** field to filter by name, address, or description.
+- An **Add Interface** button that opens a type selector, then the creation form.
+
+Clicking any interface row opens its **detail/edit panel** (type-specific form for that interface).
+
+### 8.3 Cross-Reference Lookups
+
+Any configuration field that references another named object in the system renders as a **searchable combobox dropdown** instead of a free-text input. This is a global UX pattern applied across all configuration panels.
+
+#### Behavior
+
+- On focus, fetches the list of valid targets from the API (e.g., all interface names, all firewall rule-set names).
+- Supports type-ahead filtering.
+- Shows the target's type/description alongside the name for disambiguation.
+- Allows free-text entry as a fallback (VyOS may have objects not yet created).
+- Groups results by category when multiple types are valid (e.g., interface lookup groups by Ethernet, Bond, Bridge, etc.).
+
+#### Cross-Reference Fields
+
+| Config Area | Field | Lookup Target |
+|-------------|-------|---------------|
+| Firewall rules | `inbound-interface name` | Interfaces |
+| Firewall rules | `outbound-interface name` | Interfaces |
+| Firewall rules | `inbound-interface group` | Firewall interface groups |
+| Firewall rules | `outbound-interface group` | Firewall interface groups |
+| Firewall rules | `source group address-group` | Firewall address groups |
+| Firewall rules | `source group port-group` | Firewall port groups |
+| Firewall rules | `destination group address-group` | Firewall address groups |
+| Firewall rules | `destination group port-group` | Firewall port groups |
+| Firewall zones | `interface` | Interfaces |
+| Firewall zones | `from <zone> firewall name` | Firewall IPv4 rule sets |
+| Firewall zones | `from <zone> firewall ipv6-name` | Firewall IPv6 rule sets |
+| NAT rules | `inbound-interface name` | Interfaces |
+| NAT rules | `outbound-interface name` | Interfaces |
+| NAT rules | `inbound-interface group` | Firewall interface groups |
+| NAT rules | `outbound-interface group` | Firewall interface groups |
+| QoS | `qos interface <name>` | Interfaces |
+| QoS | `egress` / `ingress` policy | Traffic policies (by name) |
+| BGP neighbor | `route-map import` / `export` | Route maps |
+| BGP neighbor | `prefix-list` | Prefix lists |
+| BGP | `address-family ... route-map` | Route maps |
+| OSPF | `interface` | Interfaces |
+| Policy route-maps | `match ip address prefix-list` | Prefix lists |
+| Policy route-maps | `match as-path` | AS path lists |
+| Policy route-maps | `match community` | Community lists |
+| Policy route-maps | `match large-community` | Large community lists |
+| Policy route-maps | `match ip next-hop prefix-list` | Prefix lists |
+| IPsec | `ike-group` | IKE groups |
+| IPsec | `esp-group` | ESP groups |
+| IPsec | `local-address` / interface | Interfaces |
+| VRRP | `interface` | Interfaces |
+| DHCP server | `listen-interface` | Interfaces |
+| PPPoE / VXLAN / MACsec / Pseudo-Ethernet | `source-interface` | Interfaces |
+| Any interface | `vrf` | VRF instances |
+| Bridge | `member interface` | Interfaces (Ethernet, Bond) |
+| Bonding | `member interface` | Interfaces (Ethernet) |
+| Containers | `network` | Container networks |
+| Load Balancing (WAN) | interface health checks | Interfaces |
+
+### 8.4 Panel Design Principles
 
 - Clicking a sidebar menu item opens the panel. The panel renders a **tab bar** across the top with all sub-sections for that domain.
 - The first tab is selected by default. The active tab is persisted per-panel in `localStorage`.
@@ -411,6 +508,7 @@ vymanage/
 | localStorage for UI state | Window positions, split layouts, and mode selection survive page reloads without server storage. |
 | shadcn/ui | Accessible, composable, and themeable component primitives that integrate well with Tailwind. |
 | Turborepo | Enables monorepo with shared packages (UI, API client, config). Parallel builds and caching speed up CI. |
+| Cross-reference combobox | Config fields that reference named objects (interfaces, rule sets, route maps, groups) use searchable dropdowns populated from the API. Prevents typos, improves discoverability, and surfaces relationships between config sections. |
 | Vitest | Fast, Vite-native test runner with first-class TypeScript support. Compatible with the existing toolchain. |
 | @testing-library/react | Tests components from the user's perspective (queries by role/text, not implementation details). Industry standard for React component testing. |
 | Playwright | Cross-browser E2E testing with built-in API mocking. Works well with static exports. |
@@ -545,9 +643,9 @@ The following use cases are derived from real VyOS configuration scenarios docum
 
 **Steps in the UI:**
 1. Open **Firewall > Zones** — create zones: `WAN`, `LAN`, `DMZ`.
-2. Assign interfaces to zones: `eth0` → `WAN`, `eth1` → `LAN`, `eth2` → `DMZ`.
+2. Assign interfaces to zones using the **interface lookup dropdown** (searchable combobox): select `eth0` → `WAN`, `eth1` → `LAN`, `eth2` → `DMZ`.
 3. Open **Firewall > IPv4 Rules** — create rule sets: `LAN-to-WAN`, `DMZ-to-WAN`, `LAN-to-DMZ`, etc.
-4. Return to **Firewall > Zones** — assign rule sets to zone pairs (e.g., `from LAN to WAN` uses `LAN-to-WAN`).
+4. Return to **Firewall > Zones** — assign rule sets to zone pairs using the **rule set lookup dropdown** (e.g., `from LAN to WAN` uses `LAN-to-WAN`).
 5. Click **Save** — review diff, confirm.
 
 **Verification:** Firewall hit counters update as traffic flows between zones.
@@ -665,7 +763,7 @@ The following use cases are derived from real VyOS configuration scenarios docum
 **Steps in the UI:**
 1. Open **Firewall > Groups** — create address groups (e.g., `TRUSTED_HOSTS`) and port groups (e.g., `WEB_PORTS`).
 2. Open **Firewall > IPv4 Rules** — select a rule set.
-3. Add new rules referencing the groups created above.
+3. Add new rules — use the **group lookup dropdowns** (searchable combobox) to select address groups and port groups created above instead of typing names manually.
 4. Drag-and-drop rules to reorder priority (e.g., move rule 30 above rule 10). The UI renumbers automatically.
 5. Delete obsolete rules with confirmation.
 6. Click **Save** — review diff (shows the `delete` + `set` operations for renumbering), confirm.
@@ -738,8 +836,8 @@ The following use cases are derived from real VyOS configuration scenarios docum
 | Auth | Connect with invalid key | Enter host + bad key, submit | Error message, stays on dialog |
 | Auth | Insecure mode toggle | Tick insecure, enter host, submit | Uses HTTP, warning banner shown |
 | Auth | Session expiry | Wait for cookie expiry | Re-prompted with connection dialog |
-| Navigation | Open panel from sidebar | Click "Interfaces" | Interfaces panel opens with Ethernet tab active |
-| Navigation | Switch tabs | Click "WireGuard" tab in Interfaces panel | Tab content loads with WireGuard config |
+| Navigation | Open panel from sidebar | Click "Interfaces" | Interfaces panel opens with unified table showing all interfaces |
+| Navigation | Switch tabs | Click "WireGuard" tab in Firewall panel | Tab content loads with relevant config |
 | Navigation | Sidebar collapse/expand | Click collapse toggle | Sidebar collapses to icons only |
 | Desktop Mode | Open multiple windows | Click 3 menu items | 3 windows visible, taskbar shows 3 entries |
 | Desktop Mode | Window focus | Click background window | Window comes to front |
@@ -749,7 +847,16 @@ The following use cases are derived from real VyOS configuration scenarios docum
 | Split Mode | Split panels | Drag panel header onto another | Space splits, both panels visible |
 | Split Mode | Resize split border | Drag border between panels | Panels resize proportionally |
 | Inline Mode | Navigate between items | Click different menu items | Only one panel shown at a time |
-| Config | Load interface config | Open Interfaces > Ethernet | Fetches and displays current config from API |
+| Interfaces | Tree view expand/collapse | Click expand on a bridge interface row | Child member interfaces appear indented below parent |
+| Interfaces | Tree view collapse | Click collapse on an expanded parent | Child rows hide |
+| Interfaces | Type filter | Select "Bridge" in type filter dropdown | Only bridge interfaces shown in table |
+| Interfaces | Search filter | Type "eth0" in search field | Table filters to matching interfaces |
+| Interfaces | Add interface | Click "Add Interface", select type, fill form | New interface appears in unified table |
+| Cross-ref | Interface combobox in firewall zone | Focus interface field in zone config | Dropdown shows all interfaces grouped by type |
+| Cross-ref | Type-ahead filtering | Type "eth" in interface combobox | Dropdown filters to matching interfaces |
+| Cross-ref | Group combobox in firewall rule | Focus address-group field in rule | Dropdown shows all defined address groups |
+| Cross-ref | Free-text fallback | Type a name not in the dropdown, press enter | Value accepted as free-text entry |
+| Config | Load interface config | Open Interfaces, click an interface row | Fetches and displays current config from API |
 | Config | Edit interface address | Change IP address field, save | `set` API call sent, config refreshes |
 | Config | Firewall rule reorder | Drag rule 20 above rule 10 | API calls renumber rules, table updates |
 | Config | Add NAT rule | Fill NAT44 form, submit | `set` API call, rule appears in table |
@@ -790,6 +897,18 @@ The following use cases are derived from real VyOS configuration scenarios docum
 | DiffModal | Cancel closes modal | Modal unmounts |
 | Window (Desktop) | Renders with header controls | Min, max, close buttons present |
 | Window (Desktop) | Close removes window | Window removed from DOM |
+| InterfaceTable | Renders all interfaces in unified table | Interfaces from all types listed in a single table |
+| InterfaceTable | Displays tree structure | Child interfaces (VLANs, members) indented under parent |
+| InterfaceTable | Expand/collapse parent row | Clicking expand shows children; clicking collapse hides them |
+| InterfaceTable | Type filter | Selecting a type hides non-matching rows |
+| InterfaceTable | Search filter | Typing in search filters by name, address, or description |
+| InterfaceTable | Click row opens detail panel | onSelect callback fired with interface data |
+| CrossRefCombobox | Renders as searchable dropdown | Input with dropdown trigger present |
+| CrossRefCombobox | Fetches options on focus | API called, options rendered in dropdown |
+| CrossRefCombobox | Type-ahead filtering | Typing filters dropdown options |
+| CrossRefCombobox | Selection sets value | Clicking an option sets the input value and fires onChange |
+| CrossRefCombobox | Groups results by category | Options grouped under type headings (e.g., Ethernet, Bond) |
+| CrossRefCombobox | Free-text fallback | Typing a value not in the list and pressing enter accepts it |
 | WorkspaceProvider | Persists mode to localStorage | Mode written on change |
 | WorkspaceProvider | Restores mode from localStorage | Correct mode on mount |
 
