@@ -53,10 +53,51 @@ All requests send the API key via the `key` field. Paths are sent as string arra
 
 ### 3.3 Data Flow
 
-```
-User Action -> TanStack Query mutation/query -> API Client -> VyOS REST API
-                                                                |
-VyOS REST API response -> API Client -> TanStack Query cache -> UI update
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as React UI
+    participant TQ as TanStack Query
+    participant AC as API Client
+    participant API as VyOS REST API
+
+    rect rgb(230, 245, 255)
+    note right of U: Read Path
+    U->>UI: View config / status
+    UI->>TQ: useQuery()
+    alt Cache fresh
+        TQ-->>UI: Return cached data
+    else Cache stale / miss
+        TQ->>AC: fetch(endpoint, path)
+        AC->>API: POST /retrieve
+        API-->>AC: JSON response
+        AC-->>TQ: Parsed data
+        TQ-->>UI: Update + cache
+    end
+    end
+
+    rect rgb(255, 245, 230)
+    note right of U: Write Path
+    U->>UI: Edit config field
+    UI->>TQ: useMutation()
+    TQ->>AC: mutate(set/delete)
+    AC->>API: POST /configure
+    API-->>AC: success/error
+    AC-->>TQ: Result
+    TQ->>TQ: Invalidate queries
+    TQ-->>UI: Re-render
+    end
+
+    rect rgb(230, 255, 230)
+    note right of U: Polling Path
+    loop refetchInterval (5-30s)
+        TQ->>AC: fetch(operational)
+        AC->>API: POST /show
+        API-->>AC: Live metrics
+        AC-->>TQ: Update cache
+        TQ-->>UI: Re-render
+    end
+    end
 ```
 
 - **Reads**: TanStack Query manages caching, background refetching, and stale data.
@@ -78,6 +119,45 @@ VyOS REST API response -> API Client -> TanStack Query cache -> UI update
 4. On subsequent visits, read the cookie, verify with `/info` using the stored protocol preference, and proceed to the main UI.
 5. On failure (expired cookie, unreachable host), re-prompt the connection dialog.
 
+```mermaid
+flowchart TD
+    A[Page Load] --> B{Cookie exists?}
+    B -- Yes --> C[Read host, key, insecure from cookie]
+    C --> D[GET /info with stored settings]
+    D -- Success --> E[Main UI]
+    D -- Failure --> F[Connection Dialog]
+    B -- No --> F
+    F --> G[User enters Host, API Key, Insecure]
+    G --> H[GET /info to verify]
+    H -- Success --> I[Store cookie — 1-day expiry]
+    I --> E
+    H -- Failure --> J[Show error in dialog]
+    J --> G
+    E --> K{Cookie expired?}
+    K -- Yes --> F
+```
+
+```
++--------------------------------------------------+
+|              Connect to VyOS Device               |
+|--------------------------------------------------|
+|                                                  |
+|  Host          [_______________________]         |
+|                                                  |
+|  API Key       [_______________________]         |
+|                                                  |
+|  [ ] Insecure (use HTTP)                         |
+|  ⚠ Warning: API key will be sent unencrypted     |
+|    (shown only when checkbox is ticked)           |
+|                                                  |
+|                          [ Connect ]             |
+|                                                  |
+|  ┌─── Error ──────────────────────────┐          |
+|  │ Connection failed: unreachable     │          |
+|  └────────────────────────────────────┘          |
++--------------------------------------------------+
+```
+
 ### 4.2 Security Considerations
 
 - The API key grants full access to the VyOS device (no granular permissions in VyOS).
@@ -90,17 +170,30 @@ VyOS REST API response -> API Client -> TanStack Query cache -> UI update
 ## 5. Application Layout
 
 ```
-+------------------------------+
-| Menu Sidebar   | Header Bar  |
-|                |-------------|
-|                |             |
-|                | Workspace   |
-|                |             |
-|----------------|             |
-| Profile/Settings             |
-+------------------------------+
-| Taskbar (desktop mode only)  |
-+------------------------------+
++------------------------------------------------------------------+
+| +----------+ +------------------------------------------------+ |
+| |  ☰ Menu  | | 🖥 vyos-router  |  v1.4.0  |  ● Connected     | |
+| |----------| | [Save] [Mode: Desktop ▾]            [⏱ --:--]  | |
+| | Dashboard| +------------------------------------------------+ |
+| | Interfac.| +------------------------------------------------+ |
+| | Firewall | |                                                | |
+| | NAT      | |                 Workspace                      | |
+| | Routing  | |                                                | |
+| | Policy   | |   (Desktop: floating windows)                  | |
+| | VPN      | |   (Split: tiled panels)                        | |
+| | Services | |   (Inline: single panel)                       | |
+| | QoS      | |                                                | |
+| | HA       | |           → See Section 6                      | |
+| | Load Bal.| |                                                | |
+| | Containe.| |                                                | |
+| | PKI      | +------------------------------------------------+ |
+| | VRF      | | [Interfaces] [Firewall] [NAT]       Taskbar    | |
+| | System   | | (desktop mode only — see §6.1)                 | |
+| | Operatio.| +------------------------------------------------+ |
+| |----------| §5.1 Sidebar    §5.2 Header                      |
+| | ⚙ Prefs  | §5.3 Workspace  §5.4 Profile/Settings            |
+| +----------+                                                    |
++------------------------------------------------------------------+
 ```
 
 ### 5.1 Menu Sidebar
@@ -134,6 +227,32 @@ VyOS REST API response -> API Client -> TanStack Query cache -> UI update
 
 Three mutually exclusive workspace modes. Selection and all window states persist in `localStorage`.
 
+```mermaid
+stateDiagram-v2
+    [*] --> Desktop : default / restored
+    Desktop --> Split : user selects Split
+    Desktop --> Inline : user selects Inline
+    Split --> Desktop : user selects Desktop
+    Split --> Inline : user selects Inline
+    Inline --> Desktop : user selects Desktop
+    Inline --> Split : user selects Split
+
+    state Desktop {
+        [*] --> SaveWindowState
+        SaveWindowState : positions, sizes, z-order
+    }
+    state Split {
+        [*] --> SaveLayoutTree
+        SaveLayoutTree : panel tree + split ratios
+    }
+    state Inline {
+        [*] --> SaveActiveItem
+        SaveActiveItem : selected menu item
+    }
+
+    note right of Desktop : All transitions persist\nnew mode to localStorage
+```
+
 ### 6.1 Desktop Mode
 
 A windowed desktop metaphor inside the workspace area.
@@ -149,6 +268,30 @@ A windowed desktop metaphor inside the workspace area.
 | Zoom override | Intercept `Ctrl+scroll` and touch pinch gestures for workspace zoom (not browser zoom) |
 | Scrollbars | Workspace always shows scrollbars; workspace canvas grows as windows are dragged outward |
 
+```
++------------------------------------------------------------+
+| Workspace (scrollable canvas)                              |
+|                                                            |
+|  ┌─ Interfaces ──────────────┐                             |
+|  │ 🖥 Interfaces   [_ ▢ ✕]  │  ┌─ Firewall ────────────┐ |
+|  │                           │  │ 🛡 Firewall   [_ ▢ ✕] │ |
+|  │  eth0  192.168.1.1  UP   │  │                        │ |
+|  │  eth1  10.0.0.1     UP   │  │  Rule 10  accept  ...  │ |
+|  │  bond0 172.16.0.1   UP   │  │  Rule 20  drop    ...  │ |
+|  │                           │  │  Rule 30  accept  ...  │ |
+|  └───────────────────────────┘  │                        │ |
+|                                 └────────────────────────┘ |
+|        ┌─ NAT ──────────────────────────┐                  |
+|        │ 🔀 NAT           [_ ▢ ✕]      │                  |
+|        │                                │                  |
+|        │  SNAT Rule 10  masquerade ...  │                  |
+|        └────────────────────────────────┘                  |
+|                                                            |
++------------------------------------------------------------+
+| [🖥 Interfaces] [🛡 Firewall] [🔀 NAT]       Taskbar     |
++------------------------------------------------------------+
+```
+
 ### 6.2 Split / Dock Mode
 
 A tiling window manager where panels split the available space.
@@ -162,6 +305,25 @@ A tiling window manager where panels split the available space.
 | Window header | Menu name + close button only (no min/max) |
 | Close behavior | Closing a panel causes adjacent panels to reclaim the freed space |
 
+```
++------------------------------------------------------------+
+|  Interfaces          ✕ || Firewall              ✕         |
+|                        ||                                  |
+|  eth0 192.168.1.1  UP  ||  Rule 10  accept  established   |
+|  eth1 10.0.0.1    UP  ||  Rule 20  drop     any          |
+|  bond0 172.16.0.1 UP  ||  Rule 30  accept   icmp         |
+|                        ||                                  |
+|  ← drag border →      ||                                  |
+|========================||==================================|
+|  NAT                ✕ || BGP Neighbors          ✕        |
+|                        ||                                  |
+|  SNAT Rule 10         ||  10.0.0.2  AS65001  Established  |
+|  masquerade  eth0     ||  10.0.0.3  AS65002  Active       |
+|                        ||                                  |
++------------------------------------------------------------+
+  ↑ draggable borders (|| = vertical, === = horizontal)
+```
+
 ### 6.3 Inline Mode
 
 A traditional single-page view.
@@ -172,6 +334,27 @@ A traditional single-page view.
 | Navigation | Selecting a new menu item replaces the current view |
 | Scrolling | Only the workspace area scrolls (sidebar and header remain fixed) |
 | No window chrome | No drag handles, title bars, or window management UI |
+
+```
++----------+---------------------------------------------+
+| ☰ Menu   |  Interfaces                                 |
+|----------|---------------------------------------------|
+| Dashbrd  |  [Ethernet] [Bond] [Bridge] [VLAN] [All]   |
+| Interfac.|---------------------------------------------|
+|  ← active|                                             |
+| Firewall |  Name    Type      Address        Status    |
+| NAT      |  eth0    Ethernet  192.168.1.1/24   UP     |
+| Routing  |  eth1    Ethernet  10.0.0.1/24      UP     |
+| Policy   |  bond0   Bonding   172.16.0.1/24    UP     |
+| VPN      |    └ eth2          (member)         UP     |
+| Services |    └ eth3          (member)         UP     |
+| QoS      |  br0     Bridge    192.168.50.1/24  UP     |
+| HA       |                                             |
+| Load Bal.|  (full-width, no window chrome)             |
+| ...      |                                             |
++----------+---------------------------------------------+
+  No taskbar in inline mode
+```
 
 ### 6.4 State Persistence
 
@@ -194,12 +377,79 @@ All mode-specific state is stored in `localStorage`:
 5. User reviews and confirms.
 6. App sends `POST /config-file` with `{ "op": "save" }`.
 
+```mermaid
+flowchart TD
+    A[User clicks Save] --> B[POST /retrieve — showConfig]
+    B --> C[Compute diff: cached vs running config]
+    C --> D{Diff empty?}
+    D -- Yes --> E[Show 'No changes' toast]
+    D -- No --> F[Show Diff Modal]
+    F --> G{User action}
+    G -- Cancel --> H[Close modal]
+    G -- Confirm --> I[POST /config-file — op: save]
+    I --> J{Success?}
+    J -- Yes --> K[Success toast + close modal]
+    J -- No --> L[Show error in modal]
+    L --> G
+```
+
+```
++------------------------------------------------------+
+|              Review Configuration Changes             |
+|------------------------------------------------------|
+|                                                      |
+|  interfaces {                                        |
+|      ethernet eth0 {                                 |
+| -        address 192.168.1.1/24                      |
+| +        address 10.0.0.1/24                         |
+|      }                                               |
+|  }                                                   |
+|  firewall {                                          |
+|      name WAN_IN {                                   |
+| +        rule 25 {                                   |
+| +            action accept                           |
+| +            protocol tcp                            |
+| +            destination port 443                    |
+| +        }                                           |
+|      }                                               |
+|  }                                                   |
+|                                                      |
+|  [ ] Enable commit-confirm  Timeout: [5] min        |
+|                                                      |
+|                      [ Cancel ]  [ Confirm & Save ]  |
++------------------------------------------------------+
+```
+
 ### 7.2 Commit-Confirm Flow
 
 1. Changes are sent to `/configure` with a `confirm_time` (e.g., 5 minutes).
 2. A countdown timer is displayed in the header.
 3. User can click **Confirm** to finalize (`POST /config-file` with `{ "op": "confirm" }`).
 4. If the timer expires without confirmation, VyOS automatically rolls back.
+
+```mermaid
+flowchart TD
+    A[User enables commit-confirm] --> B[Set timeout — e.g. 5 min]
+    B --> C[POST /configure with confirm_time]
+    C --> D{Apply success?}
+    D -- No --> E[Show error]
+    D -- Yes --> F[Start countdown in header]
+    F --> G{User clicks Confirm?}
+    G -- Yes --> H[POST /config-file — op: confirm]
+    H --> I[Timer removed — changes finalized]
+    G -- "No (timer expires)" --> J[VyOS auto-rollback]
+    J --> K[UI detects rollback — refresh config]
+```
+
+```
++------------------------------------------------------------+
+| 🖥 vyos-router  |  v1.4.0  |  ● Connected                 |
+| ⚠ Commit-confirm active: [ 3:42 remaining ] [ Confirm ]   |
++------------------------------------------------------------+
+  ↑ Header bar during commit-confirm — amber background
+    Timer counts down. Confirm button finalizes changes.
+    If timer reaches 0:00, VyOS rolls back automatically.
+```
 
 ---
 
@@ -261,6 +511,32 @@ Parent-child relationships displayed in the tree:
 
 Unbound interfaces (Loopback, Dummy, Tunnel, WireGuard, OpenVPN, VTI, GENEVE, L2TPv3, Virtual-Ethernet, Wireless, WWAN, SSTP Client) appear as top-level rows.
 
+```mermaid
+graph TD
+    ETH[Ethernet<br/>eth0, eth1, ...]
+    BOND[Bonding<br/>bond0, ...]
+    BR[Bridge<br/>br0, ...]
+    VLAN[VLAN vif<br/>eth0.10, ...]
+    PPPOE[PPPoE<br/>pppoe0, ...]
+    PSEUDO[Pseudo-Ethernet<br/>peth0, ...]
+    MACSEC[MACsec<br/>macsec0, ...]
+    VXLAN[VXLAN<br/>vxlan0, ...]
+
+    ETH -- "member interface" --> BOND
+    ETH -- "member interface" --> BR
+    BOND -- "member interface" --> BR
+    ETH -- "sub-interface (vif)" --> VLAN
+    BOND -- "sub-interface (vif)" --> VLAN
+    VLAN -- "member interface" --> BR
+    ETH -- "source-interface" --> PPPOE
+    BOND -- "source-interface" --> PPPOE
+    BR -- "source-interface" --> PPPOE
+    ETH -- "source-interface" --> PSEUDO
+    ETH -- "source-interface" --> MACSEC
+    VXLAN -- "source-interface" --> MACSEC
+    ETH -- "source-interface" --> VXLAN
+```
+
 #### Toolbar
 
 A toolbar above the table provides:
@@ -269,6 +545,31 @@ A toolbar above the table provides:
 - An **Add Interface** button that opens a type selector, then the creation form.
 
 Clicking any interface row opens its **detail/edit panel** (type-specific form for that interface).
+
+```
++------------------------------------------------------------+
+| Interfaces                                                 |
+|------------------------------------------------------------|
+| [Type: All ▾]  [🔍 Search____________]  [+ Add Interface] |
+|------------------------------------------------------------|
+| ▸ Name       Type       Address          Status  VRF  Act |
+|------------------------------------------------------------|
+| ▾ bond0      Bonding    172.16.0.1/24    UP      —    ✎ 🗑|
+|   └ eth2     Ethernet   (member)         UP      —    ✎ 🗑|
+|   └ eth3     Ethernet   (member)         UP      —    ✎ 🗑|
+| ▾ br0        Bridge     192.168.50.1/24  UP      —    ✎ 🗑|
+|   └ eth4     Ethernet   (member)         UP      —    ✎ 🗑|
+|   └ bond0    Bonding    (member)         UP      —    ✎ 🗑|
+| ▾ eth0       Ethernet   192.168.1.1/24   UP      —    ✎ 🗑|
+|   └ eth0.10  VLAN       10.0.10.1/24     UP      —    ✎ 🗑|
+|   └ eth0.20  VLAN       10.0.20.1/24     UP      —    ✎ 🗑|
+|   └ pppoe0   PPPoE      (dynamic)        UP      —    ✎ 🗑|
+|   eth1       Ethernet   10.0.0.1/24      UP      —    ✎ 🗑|
+|   lo         Loopback   127.0.0.1/8      UP      —    ✎ 🗑|
+|   wg0        WireGuard  10.10.0.1/24     UP      —    ✎ 🗑|
++------------------------------------------------------------+
+  ▾/▸ = expand/collapse tree    ✎ = edit    🗑 = delete
+```
 
 ### 8.3 Cross-Reference Lookups
 
@@ -281,6 +582,26 @@ Any configuration field that references another named object in the system rende
 - Shows the target's type/description alongside the name for disambiguation.
 - Allows free-text entry as a fallback (VyOS may have objects not yet created).
 - Groups results by category when multiple types are valid (e.g., interface lookup groups by Ethernet, Bond, Bridge, etc.).
+
+```
+  Inbound Interface  [eth_____________|▾]
+                     +------------------------------+
+                     | ── Ethernet ──────────────── |
+                     |   eth0    192.168.1.1   UP   |
+                     |   eth1    10.0.0.1      UP   |
+                     |   eth2    (bond member)  UP   |
+                     | ── Bonding ───────────────── |
+                     |   bond0   172.16.0.1    UP   |
+                     | ── Bridge ────────────────── |
+                     |   br0     192.168.50.1  UP   |
+                     |─────────────────────────────-|
+                     | ℹ Type a name not listed     |
+                     |   above to use free-text     |
+                     +------------------------------+
+  ↑ Searchable combobox with type-ahead "eth" typed.
+    Results grouped by interface type.
+    Free-text fallback for not-yet-created objects.
+```
 
 #### Cross-Reference Fields
 
@@ -333,6 +654,30 @@ Any configuration field that references another named object in the system rende
 - Forms are generated from the config schema; fields map to `set` / `delete` operations.
 - Where VyOS has ordered lists (firewall rules, NAT rules, policy rules), display as tables with **drag-and-drop reordering** via react-dnd to rearrange rule numbers.
 - Where appropriate, tabs include an operational data section using `POST /show` with polling (e.g., interface stats, BGP neighbor status, VRRP state).
+
+```
++------------------------------------------------------------+
+| Firewall                                                   |
+| [IPv4 Rules] [IPv6 Rules] [Groups] [Zones] [Global Opts]  |
+|          ↑ active tab                                      |
+|------------------------------------------------------------|
+| IPv4 Rule Set: [WAN_IN ▾]          [+ Add Rule]           |
+|------------------------------------------------------------|
+| ≡  #    Action   Protocol  Source       Dest       Hits    |
+|------------------------------------------------------------|
+| ≡  10   accept   tcp/est   any          any        14,230  |
+| ≡  20   accept   tcp       10.0.0.0/8   any:443    3,891  |
+| ≡  30   accept   icmp      any          any        1,204  |
+| ≡  40   drop     any       any          any        8,477  |
+|------------------------------------------------------------|
+| ≡ = drag handle for reorder (react-dnd)                    |
+|                                                            |
+| ── Operational Data ─────────── 🔄 polling: 10s ───────── |
+| Rule hit counters last updated: 2 seconds ago              |
+| Total packets matched: 27,802                              |
+| Default action: drop (4,112 hits)                          |
++------------------------------------------------------------+
+```
 
 ---
 
