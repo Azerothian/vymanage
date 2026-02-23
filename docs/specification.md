@@ -1,5 +1,60 @@
 # VyManage - Specification
 
+## Table of Contents
+
+| #  | Section | Line |
+|----|---------|------|
+| 1  | Overview | 58 |
+| 2  | Tech Stack | 64 |
+| 3  | Architecture | 82 |
+|    | 3.1 Static Export | 84 |
+|    | 3.2 API Communication Layer | 88 |
+|    | 3.3 Data Flow | 109 |
+| 4  | Authentication & Session | 164 |
+|    | 4.1 Flow | 166 |
+|    | 4.2 Security Considerations | 216 |
+| 5  | Application Layout | 225 |
+|    | 5.1 Menu Sidebar | 254 |
+|    | 5.2 Header Bar | 262 |
+|    | 5.3 Workspace | 268 |
+|    | 5.4 Profile / Settings | 274 |
+| 6  | Screen Management Modes | 281 |
+|    | 6.1 Desktop Mode | 311 |
+|    | 6.2 Split / Dock Mode | 350 |
+|    | 6.3 Inline Mode | 382 |
+|    | 6.4 State Persistence | 414 |
+| 7  | Configuration Save / Commit Workflow | 424 |
+|    | 7.1 Save Flow | 426 |
+|    | 7.2 Commit-Confirm Flow | 478 |
+| 8  | Menu Structure & Configuration Panels | 511 |
+|    | 8.1 Sidebar Menu Items | 515 |
+|    | 8.2 Interfaces Panel — Unified Table with Tree View | 535 |
+|    | 8.3 Cross-Reference Lookups | 629 |
+|    | 8.4 Panel Design Principles | 703 |
+| 9  | Operational Data & Metrics | 739 |
+| 10 | Drag & Drop (react-dnd) | 762 |
+| 11 | Scrollbar Styling | 772 |
+| 12 | Deployment | 781 |
+|    | 12.1 Docker | 783 |
+|    | 12.2 Configuration | 800 |
+|    | 12.3 Usage Instructions | 806 |
+| 13 | Project Structure | 817 |
+| 14 | Key Technical Decisions | 899 |
+| 15 | Non-Functional Requirements | 918 |
+| 16 | Testing Strategy | 930 |
+|    | 16.1 Unit & Integration Tests — Vitest | 932 |
+|    | 16.2 Component Tests — @testing-library/react | 953 |
+|    | 16.3 E2E Tests — Playwright | 968 |
+|    | 16.4 Coverage Targets | 991 |
+|    | 16.5 CI Integration | 1000 |
+| 17 | Use Cases (UC-1 through UC-12) | 1014 |
+| 18 | E2E & Component Test Cases | 1229 |
+|    | 18.1 E2E Tests (Playwright) | 1231 |
+|    | 18.2 Component Tests | 1275 |
+|    | 18.3 Unit Tests (Vitest) | 1315 |
+
+---
+
 ## 1. Overview
 
 VyManage is a web-based management interface for VyOS routers, communicating exclusively through the VyOS REST API (`/retrieve`, `/configure`, `/config-file`, `/show`, `/generate`, `/reset`). It provides an admin-console experience with a windowed desktop metaphor, split/dock mode, and inline mode for managing the full VyOS configuration tree.
