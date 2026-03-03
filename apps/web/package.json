@@ -10,7 +10,8 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:qemu": "playwright test --config=playwright.qemu.config.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.16",

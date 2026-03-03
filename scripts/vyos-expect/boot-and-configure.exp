@@ -1,0 +1,74 @@
+#!/usr/bin/expect -f
+# Boot VyOS in QEMU and configure via serial console
+# Usage: expect boot-and-configure.exp <serial-socket-path>
+
+set timeout 300
+set socket [lindex $argv 0]
+
+if {$socket eq ""} {
+    puts stderr "Usage: boot-and-configure.exp <serial-socket-path>"
+    exit 1
+}
+
+# Connect to serial console via socat
+spawn socat - UNIX-CONNECT:$socket
+
+# Wait for login prompt (VyOS live ISO boot can take several minutes)
+expect {
+    "vyos login:" {}
+    timeout {
+        puts stderr "ERROR: Timed out waiting for VyOS login prompt"
+        exit 1
+    }
+}
+
+# Login with default credentials
+send "vyos\r"
+expect "Password:"
+send "vyos\r"
+expect "vyos@vyos:~\$"
+
+# Enter configure mode
+send "configure\r"
+expect "vyos@vyos#"
+
+# Set hostname
+send "set system host-name 'vyos-qemu'\r"
+expect "vyos@vyos#"
+
+# Configure eth0 with DHCP
+send "set interfaces ethernet eth0 address dhcp\r"
+expect "vyos@vyos#"
+
+# Configure HTTPS API with key
+send "set service https api keys id e2etest key 'e2e-test-api-key'\r"
+expect "vyos@vyos#"
+
+# Allow API from any address
+send "set service https allow-client address '0.0.0.0/0'\r"
+expect "vyos@vyos#"
+
+# Configure SSH
+send "set service ssh listen-address '0.0.0.0'\r"
+expect "vyos@vyos#"
+
+# Commit and save
+send "commit\r"
+set timeout 120
+expect {
+    "vyos@vyos#" {}
+    timeout {
+        puts stderr "ERROR: Timed out waiting for commit"
+        exit 1
+    }
+}
+
+send "save\r"
+expect "vyos@vyos#"
+
+# Exit configure mode
+send "exit\r"
+expect "vyos@vyos:~\$"
+
+puts "\nBoot and configure completed successfully"
+exit 0

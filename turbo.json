@@ -21,6 +21,10 @@
     "test:e2e": {
       "dependsOn": ["build"]
     },
+    "test:e2e:qemu": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
     "electron#build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]

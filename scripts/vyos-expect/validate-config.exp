@@ -1,0 +1,91 @@
+#!/usr/bin/expect -f
+# Validate VyOS configuration via serial console
+# Usage: expect validate-config.exp <serial-socket-path>
+
+set timeout 30
+set socket [lindex $argv 0]
+set failures 0
+
+if {$socket eq ""} {
+    puts stderr "Usage: validate-config.exp <serial-socket-path>"
+    exit 1
+}
+
+# Connect to serial console via socat
+spawn socat - UNIX-CONNECT:$socket
+
+# Send a newline to get a prompt
+send "\r"
+expect {
+    "vyos@vyos-qemu:~\$" {}
+    "vyos login:" {
+        send "vyos\r"
+        expect "Password:"
+        send "vyos\r"
+        expect "vyos@vyos"
+    }
+    timeout {
+        puts stderr "ERROR: Could not get a shell prompt"
+        exit 1
+    }
+}
+
+# Check hostname
+send "show configuration commands | grep host-name\r"
+expect {
+    "vyos-qemu" {
+        puts "\nPASS: hostname is vyos-qemu"
+    }
+    timeout {
+        puts "\nFAIL: hostname check timed out"
+        incr failures
+    }
+}
+expect "vyos@vyos"
+
+# Check HTTPS API
+send "show configuration commands | grep 'service https'\r"
+expect {
+    "e2e-test-api-key" {
+        puts "\nPASS: HTTPS API key configured"
+    }
+    timeout {
+        puts "\nFAIL: HTTPS API key not found"
+        incr failures
+    }
+}
+expect "vyos@vyos"
+
+# Check eth0 interface
+send "show interfaces ethernet eth0\r"
+expect {
+    -re {inet\s+\d+\.\d+\.\d+\.\d+} {
+        puts "\nPASS: eth0 has an IP address"
+    }
+    timeout {
+        puts "\nFAIL: eth0 does not have an IP address"
+        incr failures
+    }
+}
+expect "vyos@vyos"
+
+# Check SSH
+send "show configuration commands | grep 'service ssh'\r"
+expect {
+    "listen-address" {
+        puts "\nPASS: SSH configured"
+    }
+    timeout {
+        puts "\nFAIL: SSH not configured"
+        incr failures
+    }
+}
+expect "vyos@vyos"
+
+if {$failures > 0} {
+    puts "\n\nValidation FAILED: $failures check(s) failed"
+    exit 1
+} else {
+    puts "\n\nValidation PASSED: all checks passed"
+    exit 0
+}

@@ -1,0 +1,41 @@
+#!/usr/bin/expect -f
+# Run a generic command on VyOS via serial console
+# Usage: expect run-command.exp <serial-socket-path> <command>
+
+set timeout 30
+set socket [lindex $argv 0]
+set command [lindex $argv 1]
+
+if {$socket eq "" || $command eq ""} {
+    puts stderr "Usage: run-command.exp <serial-socket-path> <command>"
+    exit 1
+}
+
+log_user 0
+
+# Connect to serial console via socat
+spawn socat - UNIX-CONNECT:$socket
+
+# Send a newline to get a prompt
+send "\r"
+expect {
+    "vyos@vyos" {}
+    "vyos login:" {
+        send "vyos\r"
+        expect "Password:"
+        send "vyos\r"
+        expect "vyos@vyos"
+    }
+    timeout {
+        puts stderr "ERROR: Could not get a shell prompt"
+        exit 1
+    }
+}
+
+log_user 1
+
+# Send the command
+send "$command\r"
+expect "vyos@vyos"
+
+exit 0
