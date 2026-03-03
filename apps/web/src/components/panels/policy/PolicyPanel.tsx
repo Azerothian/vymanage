@@ -1,0 +1,139 @@
+'use client';
+
+import { useState, useCallback } from 'react';
+import type { VyosConnectionInfo } from '@vymanage/vyos-client';
+import { ConfigPanel, type TabDefinition } from '@/components/config/ConfigPanel';
+import { RuleTable, type RuleColumn } from '@/components/config/RuleTable';
+
+const TABS: TabDefinition[] = [
+  { id: 'route-map', label: 'Route Maps', configPath: ['policy', 'route-map'] },
+  { id: 'access-list', label: 'Access Lists', configPath: ['policy', 'access-list'] },
+  { id: 'prefix-list', label: 'Prefix Lists', configPath: ['policy', 'prefix-list'] },
+  { id: 'as-path-list', label: 'AS Path Lists', configPath: ['policy', 'as-path-list'] },
+  { id: 'community-list', label: 'Community Lists', configPath: ['policy', 'community-list'] },
+  { id: 'extcommunity-list', label: 'Ext Community', configPath: ['policy', 'extcommunity-list'] },
+  { id: 'large-community-list', label: 'Large Community', configPath: ['policy', 'large-community-list'] },
+  { id: 'local-route', label: 'Local Route', configPath: ['policy', 'local-route'] },
+];
+
+interface RouteMapEntry {
+  id: string;
+  name: string;
+  seq: string;
+  action: string;
+  description: string;
+}
+
+interface Props {
+  connection: VyosConnectionInfo;
+}
+
+function RouteMapTable({ data }: { data: unknown }) {
+  const [entries, setEntries] = useState<RouteMapEntry[]>(() => {
+    if (!data || typeof data !== 'object') return [];
+    const rows: RouteMapEntry[] = [];
+    for (const [name, mapCfg] of Object.entries(data as Record<string, unknown>)) {
+      const seqs = (mapCfg as Record<string, unknown>).rule as Record<string, unknown> || {};
+      for (const [seq, ruleCfg] of Object.entries(seqs)) {
+        const rule = ruleCfg as Record<string, unknown>;
+        rows.push({
+          id: `${name}-${seq}`,
+          name,
+          seq,
+          action: String(rule.action || ''),
+          description: String(rule.description || ''),
+        });
+      }
+    }
+    return rows;
+  });
+
+  const columns: RuleColumn<RouteMapEntry>[] = [
+    { id: 'name', header: 'Map Name', accessor: (r) => r.name },
+    { id: 'seq', header: 'Sequence', accessor: (r) => r.seq, width: '80px' },
+    { id: 'action', header: 'Action', accessor: (r) => (
+      <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${r.action === 'permit' ? 'bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-red-500/20 text-red-700 dark:text-red-400'}`}>
+        {r.action || '-'}
+      </span>
+    ), width: '80px' },
+    { id: 'description', header: 'Description', accessor: (r) => r.description || '-' },
+  ];
+
+  const handleReorder = useCallback((from: number, to: number) => {
+    setEntries((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }, []);
+
+  return <RuleTable rules={entries} columns={columns} onReorder={handleReorder} addLabel="Add Route Map Entry" />;
+}
+
+function GenericListTable({ data, nameCol }: { data: unknown; nameCol: string }) {
+  const [entries, setEntries] = useState<Array<{ id: string; name: string; seq: string; action: string; network: string }>>(() => {
+    if (!data || typeof data !== 'object') return [];
+    const rows: Array<{ id: string; name: string; seq: string; action: string; network: string }> = [];
+    for (const [name, listCfg] of Object.entries(data as Record<string, unknown>)) {
+      const rules = (listCfg as Record<string, unknown>).rule as Record<string, unknown> || {};
+      for (const [seq, ruleCfg] of Object.entries(rules)) {
+        const rule = ruleCfg as Record<string, unknown>;
+        rows.push({
+          id: `${name}-${seq}`,
+          name,
+          seq,
+          action: String(rule.action || ''),
+          network: String(rule.prefix || rule.network || rule.regex || rule.description || ''),
+        });
+      }
+    }
+    return rows;
+  });
+
+  const columns: RuleColumn<(typeof entries)[0]>[] = [
+    { id: 'name', header: nameCol, accessor: (r) => r.name },
+    { id: 'seq', header: 'Seq', accessor: (r) => r.seq, width: '60px' },
+    { id: 'action', header: 'Action', accessor: (r) => (
+      <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${r.action === 'permit' ? 'bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-red-500/20 text-red-700 dark:text-red-400'}`}>
+        {r.action || '-'}
+      </span>
+    ), width: '80px' },
+    { id: 'network', header: 'Match', accessor: (r) => <span className="font-mono text-xs">{r.network || '-'}</span> },
+  ];
+
+  const handleReorder = useCallback((from: number, to: number) => {
+    setEntries((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }, []);
+
+  return <RuleTable rules={entries} columns={columns} onReorder={handleReorder} addLabel="Add Entry" />;
+}
+
+export function PolicyPanel({ connection }: Props) {
+  return (
+    <ConfigPanel
+      menuId="policy"
+      tabs={TABS}
+      connection={connection}
+      renderContent={(data, tab) => {
+        if (tab.id === 'route-map') return <RouteMapTable data={data} />;
+        if (tab.id === 'access-list') return <GenericListTable data={data} nameCol="List Name" />;
+        if (tab.id === 'prefix-list') return <GenericListTable data={data} nameCol="Prefix List" />;
+        if (tab.id === 'as-path-list') return <GenericListTable data={data} nameCol="AS Path List" />;
+        if (tab.id === 'community-list') return <GenericListTable data={data} nameCol="Community List" />;
+        if (tab.id === 'extcommunity-list') return <GenericListTable data={data} nameCol="Ext Community" />;
+        if (tab.id === 'large-community-list') return <GenericListTable data={data} nameCol="Large Community" />;
+        return (
+          <pre className="max-h-96 overflow-auto rounded bg-muted/50 p-3 font-mono text-xs scrollbar-thin">
+            {data === undefined || data === null ? 'No configuration' : JSON.stringify(data, null, 2)}
+          </pre>
+        );
+      }}
+    />
+  );
+}

@@ -1,0 +1,170 @@
+export const FULL_MOCK_CONFIG: Record<string, unknown> = {
+  interfaces: {
+    ethernet: {
+      eth0: {
+        address: ['dhcp'],
+        description: 'WAN',
+        'hw-id': '00:11:22:33:44:55',
+      },
+      eth1: {
+        address: ['192.168.1.1/24'],
+        description: 'LAN',
+        'hw-id': '00:11:22:33:44:66',
+      },
+      // eth2 and eth3 are bond members (claimed by bond0)
+      eth2: {
+        description: 'Bond member',
+      },
+      eth3: {
+        description: 'Bond member',
+      },
+      // eth4 and eth5 are bridge members (claimed by br0)
+      eth4: {
+        description: 'Bridge member',
+      },
+      eth5: {
+        description: 'Bridge member',
+      },
+    },
+    bonding: {
+      bond0: {
+        address: ['10.0.0.1/24'],
+        description: 'Trunk',
+        mode: '802.3ad',
+        // member.interface must be an object (keys are interface names) for InterfacesPanel
+        member: { interface: { eth2: {}, eth3: {} } },
+      },
+    },
+    bridge: {
+      br0: {
+        address: ['172.16.0.1/24'],
+        description: 'Bridge',
+        member: { interface: { eth4: {}, eth5: {} } },
+      },
+    },
+    wireguard: {
+      wg0: {
+        address: ['10.10.10.1/24'],
+        description: 'WireGuard VPN',
+        port: '51820',
+        'private-key': 'MOCK_PRIVATE_KEY',
+        peer: {
+          peer1: {
+            'allowed-ips': ['10.10.10.2/32'],
+            'public-key': 'MOCK_PUBLIC_KEY',
+          },
+        },
+      },
+    },
+    loopback: {
+      lo: {},
+    },
+  },
+  firewall: {
+    ipv4: {
+      name: {
+        WAN_IN: {
+          'default-action': 'drop',
+          rule: {
+            '10': { action: 'accept', state: 'established,related', description: 'Allow established' },
+            '20': { action: 'accept', protocol: 'icmp', description: 'Allow ICMP' },
+            '30': { action: 'drop', description: 'Drop invalid', state: 'invalid' },
+          },
+        },
+        WAN_LOCAL: {
+          'default-action': 'drop',
+          rule: {
+            '10': { action: 'accept', state: 'established,related', description: 'Allow established' },
+            '20': { action: 'accept', protocol: 'tcp', destination: { port: '22' }, description: 'Allow SSH' },
+          },
+        },
+      },
+    },
+    group: {
+      'address-group': {
+        TRUSTED: { address: ['192.168.1.0/24', '10.0.0.0/8'], description: 'Trusted networks' },
+        BLOCKED: { address: ['203.0.113.0/24'], description: 'Blocked IPs' },
+      },
+      'port-group': {
+        WEB_PORTS: { port: ['80', '443'], description: 'Web traffic' },
+        MAIL_PORTS: { port: ['25', '587', '993'], description: 'Mail traffic' },
+      },
+    },
+  },
+  nat: {
+    source: {
+      rule: {
+        '10': {
+          outbound_interface: { name: 'eth0' },
+          source: { address: '192.168.1.0/24' },
+          translation: { address: 'masquerade' },
+          description: 'LAN masquerade',
+        },
+      },
+    },
+    destination: {
+      rule: {
+        '10': {
+          inbound_interface: { name: 'eth0' },
+          destination: { port: '443' },
+          protocol: 'tcp',
+          translation: { address: '192.168.1.100', port: '443' },
+          description: 'HTTPS to web server',
+        },
+      },
+    },
+  },
+  system: {
+    'host-name': 'vyos-router',
+    'name-server': ['8.8.8.8', '8.8.4.4'],
+    'time-zone': 'UTC',
+    login: {
+      user: {
+        vyos: {
+          authentication: { 'encrypted-password': '$6$rounds=656000$...' },
+        },
+      },
+    },
+    syslog: {
+      global: { facility: { all: { level: 'info' } } },
+    },
+    conntrack: {
+      modules: { ftp: {}, sip: {} },
+    },
+  },
+  service: {
+    ssh: { port: '22', 'listen-address': ['0.0.0.0'] },
+    dns: {
+      forwarding: {
+        'allow-from': ['192.168.1.0/24'],
+        'listen-address': ['192.168.1.1'],
+        'name-server': ['8.8.8.8', '8.8.4.4'],
+      },
+    },
+    ntp: {
+      'allow-client': { address: ['192.168.1.0/24'] },
+      server: { '0.pool.ntp.org': {}, '1.pool.ntp.org': {} },
+    },
+  },
+  protocols: {
+    static: {
+      route: {
+        '0.0.0.0/0': { 'next-hop': { '192.168.1.254': {} } },
+      },
+    },
+  },
+};
+
+export const MOCK_INFO = {
+  version: '1.4.0',
+  hostname: 'vyos-router',
+};
+
+export const MOCK_OPERATIONAL = {
+  interfaces: {
+    ethernet: {
+      eth0: { status: 'up', speed: '1000', duplex: 'full', rx_bytes: '1234567', tx_bytes: '7654321' },
+      eth1: { status: 'up', speed: '1000', duplex: 'full', rx_bytes: '2345678', tx_bytes: '8765432' },
+    },
+  },
+};

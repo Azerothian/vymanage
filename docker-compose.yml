@@ -1,0 +1,8 @@
+services:
+  vymanage:
+    build: .
+    ports:
+      - "8080:80"
+    environment:
+      - VYMANAGE_DEFAULT_HOST=${VYMANAGE_DEFAULT_HOST:-}
+    restart: unless-stopped

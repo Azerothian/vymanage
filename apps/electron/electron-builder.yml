@@ -1,0 +1,36 @@
+appId: com.vymanage.app
+productName: VyManage
+copyright: Copyright © 2024 VyManage
+
+directories:
+  output: release
+
+files:
+  - dist/**/*
+
+extraResources:
+  - from: ../web/out
+    to: web
+    filter:
+      - "**/*"
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Utility
+  icon: resources/icon.png
+
+mac:
+  target:
+    - dmg
+  icon: resources/icon.png
+
+win:
+  target:
+    - nsis
+  icon: resources/icon.png
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

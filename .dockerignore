@@ -1,0 +1,13 @@
+node_modules
+.git
+.next
+out
+dist
+coverage
+test-results
+playwright-report
+.omc
+.claude
+.vscode
+*.md
+!README.md

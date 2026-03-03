@@ -1,0 +1,13 @@
+{
+  "name": "@vymanage/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tailwind": "./tailwind.config.ts",
+    "./tsconfig/*": "./tsconfig.*.json"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}
