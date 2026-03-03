@@ -10,9 +10,11 @@
     "package": "electron-builder",
     "package:linux": "electron-builder --linux",
     "package:mac": "electron-builder --mac",
-    "package:win": "electron-builder --win"
+    "package:win": "electron-builder --win",
+    "test:e2e": "xvfb-run --auto-servernum playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0",
     "typescript": "^5.6.0"

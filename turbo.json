@@ -33,6 +33,10 @@
       "dependsOn": ["web#build"],
       "cache": false,
       "persistent": true
+    },
+    "electron#test:e2e": {
+      "dependsOn": ["electron#build", "web#build"],
+      "outputs": []
     }
   }
 }
