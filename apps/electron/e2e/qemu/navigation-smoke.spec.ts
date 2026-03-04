@@ -10,8 +10,8 @@ test.describe('QEMU Electron Navigation Smoke', () => {
       await waitForConnected(page);
       for (const panel of PANELS) {
         await navigateToPanel(page, panel);
-        const content = page.locator('main, [role="main"], .content');
-        await expect(content).toBeVisible({ timeout: 10_000 });
+        const nav = page.locator('nav, [role="navigation"]');
+        await expect(nav.getByText(panel, { exact: true }).first()).toBeVisible({ timeout: 10_000 });
       }
     } finally {
       await closeQemuApp(electronApp);

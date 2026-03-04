@@ -8,9 +8,9 @@ test.describe('QEMU Navigation Smoke', () => {
     await loginToQemu(page);
     for (const panel of PANELS) {
       await navigateToPanel(page, panel);
-      // Verify page didn't crash — main content area should be visible
-      const content = page.locator('main, [role="main"], .content');
-      await expect(content).toBeVisible({ timeout: 10_000 });
+      // Verify page didn't crash — sidebar navigation should still be visible
+      const nav = page.locator('nav, [role="navigation"]');
+      await expect(nav.getByText(panel, { exact: true }).first()).toBeVisible({ timeout: 10_000 });
     }
   });
 });

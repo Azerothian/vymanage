@@ -17,18 +17,22 @@ spawn socat - UNIX-CONNECT:$socket
 # Send a newline to get a prompt
 send "\r"
 expect {
-    "vyos@vyos-qemu:~\$" {}
+    -re "vyos@vyos\[^ \]*\[#\$]" {}
     "vyos login:" {
         send "vyos\r"
         expect "Password:"
         send "vyos\r"
-        expect "vyos@vyos"
+        expect -re "vyos@vyos"
     }
     timeout {
         puts stderr "ERROR: Could not get a shell prompt"
         exit 1
     }
 }
+
+# Disable pager to prevent less/more from blocking output
+send "export VYOS_PAGER=cat\r"
+expect -re "vyos@vyos"
 
 # Check hostname
 send "show configuration commands | grep host-name\r"
@@ -41,7 +45,7 @@ expect {
         incr failures
     }
 }
-expect "vyos@vyos"
+expect -re "vyos@vyos"
 
 # Check HTTPS API
 send "show configuration commands | grep 'service https'\r"
@@ -54,7 +58,7 @@ expect {
         incr failures
     }
 }
-expect "vyos@vyos"
+expect -re "vyos@vyos"
 
 # Check eth0 interface
 send "show interfaces ethernet eth0\r"
@@ -67,7 +71,7 @@ expect {
         incr failures
     }
 }
-expect "vyos@vyos"
+expect -re "vyos@vyos"
 
 # Check SSH
 send "show configuration commands | grep 'service ssh'\r"
@@ -80,7 +84,7 @@ expect {
         incr failures
     }
 }
-expect "vyos@vyos"
+expect -re "vyos@vyos"
 
 if {$failures > 0} {
     puts "\n\nValidation FAILED: $failures check(s) failed"

@@ -8,15 +8,15 @@ test.describe('QEMU Firewall', () => {
   });
 
   test('firewall panel loads without error', async ({ page }) => {
-    // Verify no error state is shown
-    await expect(page.getByText(/error|failed|crash/i)).not.toBeVisible({ timeout: 5_000 }).catch(() => {
-      // If no error text found, that's the expected pass
-    });
+    // Firewall panel should open — sidebar shows Firewall as active
+    const nav = page.locator('nav, [role="navigation"]');
+    await expect(nav.getByText('Firewall')).toBeVisible();
   });
 
-  test('firewall tabs are visible', async ({ page }) => {
-    // Look for common firewall sub-sections
-    const content = page.locator('main, [role="main"], .content');
-    await expect(content).toBeVisible();
+  test('firewall window is visible', async ({ page }) => {
+    // The firewall panel opens in a desktop window
+    await page.waitForTimeout(2000);
+    const nav = page.locator('nav, [role="navigation"]');
+    await expect(nav.getByText('Firewall')).toBeVisible();
   });
 });

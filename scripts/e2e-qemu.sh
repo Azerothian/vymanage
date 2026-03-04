@@ -16,8 +16,8 @@ ISO_PATH="$ISO_DIR/vyos-rolling.iso"
 DISK_PATH="$ISO_DIR/vyos-qemu.qcow2"
 SERIAL_SOCK="/tmp/vyos-e2e-serial.sock"
 API_KEY="e2e-test-api-key"
-QEMU_HTTPS_PORT=8443
-QEMU_SSH_PORT=2222
+QEMU_HTTPS_PORT="${VYOS_QEMU_HTTPS_PORT:-9443}"
+QEMU_SSH_PORT="${VYOS_QEMU_SSH_PORT:-9222}"
 QEMU_MEM=2048
 QEMU_CPUS=2
 QEMU_PID=""
@@ -123,17 +123,16 @@ expect "$SCRIPT_DIR/vyos-expect/boot-and-configure.exp" "$SERIAL_SOCK"
 # --- Step 8: Poll API readiness ---
 echo "==> Waiting for VyOS HTTPS API to become ready..."
 API_READY=false
-for i in $(seq 1 120); do
-    if curl -sk "https://127.0.0.1:${QEMU_HTTPS_PORT}/retrieve" \
-        -H "Content-Type: application/json" \
-        -d '{"key":"'"$API_KEY"'","op":"showConfig","path":[]}' 2>/dev/null | grep -q "vyos-qemu"; then
+for i in $(seq 1 180); do
+    if curl -sk --max-time 5 "https://127.0.0.1:${QEMU_HTTPS_PORT}/retrieve" \
+        --data-urlencode "data={\"op\":\"showConfig\",\"path\":[],\"key\":\"$API_KEY\"}" 2>/dev/null | grep -q "vyos-qemu"; then
         API_READY=true
         break
     fi
     sleep 1
 done
 if [[ "$API_READY" != "true" ]]; then
-    echo "ERROR: VyOS API did not become ready within 120s"
+    echo "ERROR: VyOS API did not become ready within 180s"
     exit 1
 fi
 echo "==> VyOS API is ready"

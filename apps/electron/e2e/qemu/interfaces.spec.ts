@@ -7,8 +7,8 @@ test.describe('QEMU Electron Interfaces', () => {
     try {
       await waitForConnected(page);
       await navigateToPanel(page, 'Interfaces');
-      await expect(page.getByText('eth0')).toBeVisible();
-      await expect(page.getByText('lo')).toBeVisible();
+      await expect(page.getByRole('cell', { name: 'eth0' })).toBeVisible();
+      await expect(page.getByRole('cell', { name: 'lo', exact: true })).toBeVisible();
     } finally {
       await closeQemuApp(electronApp);
     }

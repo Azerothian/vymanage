@@ -13,9 +13,11 @@ export class VyosClient implements IVyosClient {
   private key: string;
 
   constructor(connection: VyosConnectionInfo | { host: string; key: string; insecure: boolean }) {
-    const deviceConn = connection as VyosDeviceConnection & { insecure?: boolean };
-    const protocol = deviceConn.insecure ? 'http' : 'https';
-    this.baseUrl = `${protocol}://${connection.host}`;
+    // Always use HTTPS — VyOS serves HTTPS by default.
+    // The "insecure" flag means "accept self-signed certs", not "downgrade to HTTP".
+    // In Electron, cert validation is handled by the app-level certificate-error event.
+    // In browsers, the user must trust the cert or use a proper CA-signed cert.
+    this.baseUrl = `https://${connection.host}`;
     this.key = (connection as VyosDeviceConnection).key ?? '';
   }
 

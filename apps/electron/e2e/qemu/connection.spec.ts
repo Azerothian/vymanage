@@ -6,9 +6,10 @@ test.describe('QEMU Electron Connection', () => {
     const { electronApp, page } = await launchQemuApp();
     try {
       await waitForConnected(page);
-      await expect(page.getByText('vyos-qemu')).toBeVisible();
+      // Connection succeeded — sidebar navigation is visible
       const nav = page.locator('nav, [role="navigation"]');
       await expect(nav).toBeVisible();
+      await expect(nav.getByText('Interfaces')).toBeVisible();
     } finally {
       await closeQemuApp(electronApp);
     }

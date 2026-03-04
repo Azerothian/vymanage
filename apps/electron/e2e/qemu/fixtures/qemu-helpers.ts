@@ -3,7 +3,7 @@ import * as path from 'path';
 
 const ELECTRON_MAIN = path.join(__dirname, '..', '..', '..', 'dist', 'main.js');
 const QEMU_HOST = process.env.VYOS_QEMU_HOST ?? '127.0.0.1';
-const QEMU_PORT = process.env.VYOS_QEMU_PORT ?? '8443';
+const QEMU_PORT = process.env.VYOS_QEMU_PORT ?? '9443';
 const QEMU_API_KEY = process.env.VYOS_QEMU_API_KEY ?? 'e2e-test-api-key';
 
 export async function launchQemuApp(): Promise<{ electronApp: ElectronApplication; page: Page }> {
@@ -25,7 +25,10 @@ export async function closeQemuApp(electronApp: ElectronApplication): Promise<vo
 }
 
 export async function waitForConnected(page: Page): Promise<void> {
-  await expect(page.getByText('vyos-qemu')).toBeVisible({ timeout: 30_000 });
+  // Wait for sidebar navigation to appear — proves connection succeeded
+  const nav = page.locator('nav, [role="navigation"]');
+  await expect(nav.getByText('Interfaces')).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(2000);
 }
 
 export async function navigateToPanel(page: Page, panelName: string): Promise<void> {

@@ -40,6 +40,10 @@ expect "vyos@vyos#"
 send "set interfaces ethernet eth0 address dhcp\r"
 expect "vyos@vyos#"
 
+# Enable HTTPS REST API
+send "set service https api rest\r"
+expect "vyos@vyos#"
+
 # Configure HTTPS API with key
 send "set service https api keys id e2etest key 'e2e-test-api-key'\r"
 expect "vyos@vyos#"

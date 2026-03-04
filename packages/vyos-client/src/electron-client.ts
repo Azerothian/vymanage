@@ -28,8 +28,9 @@ export class ElectronVyosClient implements IVyosClient {
   private apiRequest: ElectronApiRequest;
 
   constructor(connection: VyosDeviceConnection, apiRequest: ElectronApiRequest) {
-    const protocol = connection.insecure ? 'http' : 'https';
-    this.baseUrl = `${protocol}://${connection.host}`;
+    // Electron always uses HTTPS — the IPC handler manages cert validation
+    // via rejectUnauthorized when insecure=true, so we never downgrade to HTTP
+    this.baseUrl = `https://${connection.host}`;
     this.key = connection.key;
     this.insecure = connection.insecure;
     this.apiRequest = apiRequest;

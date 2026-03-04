@@ -3,6 +3,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { registerIpcHandlers } from './ipc-handlers';
 
+// Set app name early so the user data dir and singleton lock are VyManage-specific
+app.name = 'VyManage';
+
 // Parse CLI arguments
 function parseArgs(): { file?: string; host?: string; key?: string; insecure?: boolean } {
   const args: { file?: string; host?: string; key?: string; insecure?: boolean } = {};
@@ -86,6 +89,10 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      // Disable web security to allow fetch from vymanage:// to https:// device APIs.
+      // Electron loads the UI from a custom protocol (vymanage://app/) so all API
+      // calls to VyOS devices are cross-origin by definition.
+      webSecurity: false,
     },
   });
 
@@ -209,6 +216,13 @@ if (!gotTheLock) {
       mainWindow.focus();
     }
   });
+
+  // Accept self-signed certificates when --insecure is set.
+  // VyOS uses self-signed HTTPS by default. appendSwitch tells Chromium's
+  // network stack to skip cert verification for all renderer fetch() calls.
+  if (startupArgs.insecure) {
+    app.commandLine.appendSwitch('ignore-certificate-errors');
+  }
 
   app.whenReady().then(() => {
     // Register protocol handler for vymanage:// scheme

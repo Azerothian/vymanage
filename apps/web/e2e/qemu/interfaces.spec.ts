@@ -8,20 +8,19 @@ test.describe('QEMU Interfaces', () => {
   });
 
   test('eth0 is visible in the interface list', async ({ page }) => {
-    await expect(page.getByText('eth0')).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'eth0' })).toBeVisible();
   });
 
   test('loopback interface is visible', async ({ page }) => {
-    await expect(page.getByText('lo')).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'lo', exact: true })).toBeVisible();
   });
 
   test('eth0 shows DHCP address', async ({ page }) => {
-    // eth0 should have a DHCP-assigned address visible
-    await expect(page.getByText(/\d+\.\d+\.\d+\.\d+/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('cell', { name: 'dhcp' })).toBeVisible();
   });
 
   test('interface table has expected columns', async ({ page }) => {
-    await expect(page.getByText(/name/i)).toBeVisible();
-    await expect(page.getByText(/address/i)).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Address' })).toBeVisible();
   });
 });

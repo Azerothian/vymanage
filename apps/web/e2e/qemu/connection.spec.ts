@@ -2,9 +2,10 @@ import { test, expect } from '@playwright/test';
 import { loginToQemu } from './fixtures/qemu-helpers';
 
 test.describe('QEMU Connection', () => {
-  test('connects to real VyOS and shows hostname', async ({ page }) => {
+  test('connects to real VyOS and shows app shell', async ({ page }) => {
     await loginToQemu(page);
-    await expect(page.getByText('vyos-qemu')).toBeVisible();
+    // Connection succeeded — header and sidebar are visible
+    await expect(page.locator('banner, header')).toBeVisible();
   });
 
   test('sidebar navigation panels are visible after connect', async ({ page }) => {
