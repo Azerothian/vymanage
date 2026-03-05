@@ -3,6 +3,9 @@
 import type { VyosConnectionInfo } from '@vymanage/vyos-client';
 import { ConfigPanel, type TabDefinition } from '@/components/config/ConfigPanel';
 import { OperationalDataSection } from '@/components/config/OperationalDataSection';
+import { GenericConfigTab } from '@/components/config/GenericConfigTab';
+import { KeyedItemTable } from '@/components/config/KeyedItemTable';
+import { useKeyedCrud } from '@/lib/hooks/useKeyedCrud';
 
 const TABS: TabDefinition[] = [
   { id: 'static', label: 'Static Routes', configPath: ['protocols', 'static'] },
@@ -26,13 +29,55 @@ interface Props {
   connection: VyosConnectionInfo;
 }
 
+function StaticRoutesTab({ data, connection }: { data: unknown; connection: VyosConnectionInfo }) {
+  const basePath = ['protocols', 'static', 'route'];
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, basePath);
+  const routes = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  const routeData = (routes.route && typeof routes.route === 'object' ? routes.route : {}) as Record<string, unknown>;
+
+  return (
+    <div className="space-y-4">
+      <KeyedItemTable
+        data={routeData}
+        keyHeader="Prefix"
+        emptyMessage="No static routes configured"
+        columns={[
+          {
+            id: 'next-hop',
+            header: 'Next Hop',
+            accessor: (_key, value) => {
+              const nexthops = Object.keys((value['next-hop'] as Record<string, unknown>) || {});
+              return <span className="font-mono text-xs">{nexthops.join(', ') || '-'}</span>;
+            },
+          },
+          {
+            id: 'distance',
+            header: 'Distance',
+            accessor: (_key, value) => {
+              const nexthops = Object.values((value['next-hop'] as Record<string, unknown>) || {});
+              const dist = nexthops.length > 0 ? (nexthops[0] as Record<string, unknown>)?.distance : undefined;
+              return <span className="font-mono text-xs">{dist !== undefined ? String(dist) : '-'}</span>;
+            },
+          },
+        ]}
+        formFields={[
+          { name: 'next-hop', label: 'Next Hop', type: 'text' },
+        ]}
+        formTitle="Static Route"
+        addLabel="Add Route"
+        onAdd={(key, fields) => addItem(key, fields)}
+        onEdit={(key, fields) => updateItem(key, fields)}
+        onDelete={(key) => deleteItem(key)}
+      />
+    </div>
+  );
+}
+
 function renderContent(data: unknown, tab: TabDefinition, connection: VyosConnectionInfo) {
   if (tab.id === 'bgp') {
     return (
       <div className="space-y-4">
-        <pre className="max-h-96 overflow-auto rounded bg-muted/50 p-3 font-mono text-xs scrollbar-thin">
-          {JSON.stringify(data, null, 2)}
-        </pre>
+        <GenericConfigTab data={data} connection={connection} basePath={tab.configPath} />
         <OperationalDataSection
           connection={connection}
           path={['bgp', 'summary']}
@@ -46,9 +91,7 @@ function renderContent(data: unknown, tab: TabDefinition, connection: VyosConnec
   if (tab.id === 'ospf') {
     return (
       <div className="space-y-4">
-        <pre className="max-h-96 overflow-auto rounded bg-muted/50 p-3 font-mono text-xs scrollbar-thin">
-          {JSON.stringify(data, null, 2)}
-        </pre>
+        <GenericConfigTab data={data} connection={connection} basePath={tab.configPath} />
         <OperationalDataSection
           connection={connection}
           path={['ospf', 'neighbor']}
@@ -60,60 +103,16 @@ function renderContent(data: unknown, tab: TabDefinition, connection: VyosConnec
   }
 
   if (tab.id === 'static') {
-    const routes = data && typeof data === 'object' ? data as Record<string, unknown> : {};
-    const routeEntries = Object.entries(routes.route || {});
-    return (
-      <div className="space-y-4">
-        <div className="rounded-md border border-border">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Prefix</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Next Hop</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Interface</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Distance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {routeEntries.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">No static routes configured</td>
-                </tr>
-              ) : (
-                routeEntries.map(([prefix, cfg]) => {
-                  const route = cfg as Record<string, unknown>;
-                  const nexthops = Object.entries((route['next-hop'] as Record<string, unknown>) || {});
-                  return nexthops.map(([nh, nhcfg]) => {
-                    const nhObj = nhcfg as Record<string, unknown>;
-                    return (
-                      <tr key={`${prefix}-${nh}`} className="border-b border-border hover:bg-muted/50">
-                        <td className="px-3 py-2 font-mono text-sm">{prefix}</td>
-                        <td className="px-3 py-2 text-sm">{nh}</td>
-                        <td className="px-3 py-2 text-sm">{String(nhObj.interface || '')}</td>
-                        <td className="px-3 py-2 text-sm">{String(nhObj.distance || '')}</td>
-                      </tr>
-                    );
-                  });
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
+    return <StaticRoutesTab data={data} connection={connection} />;
   }
 
-  return (
-    <pre className="max-h-96 overflow-auto rounded bg-muted/50 p-3 font-mono text-xs scrollbar-thin">
-      {data === undefined || data === null ? 'No configuration' : JSON.stringify(data, null, 2)}
-    </pre>
-  );
+  return <GenericConfigTab data={data} connection={connection} basePath={tab.configPath} />;
 }
 
 export function ProtocolsPanel({ connection }: Props) {
   return (
     <ConfigPanel
-      menuId="protocols"
+      menuId="routing"
       tabs={TABS}
       connection={connection}
       renderContent={(data, tab) => renderContent(data, tab, connection)}

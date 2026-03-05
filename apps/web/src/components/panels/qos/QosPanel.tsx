@@ -2,6 +2,8 @@
 
 import type { VyosConnectionInfo } from '@vymanage/vyos-client';
 import { ConfigPanel, type TabDefinition } from '@/components/config/ConfigPanel';
+import { KeyedItemTable, type KeyedColumn } from '@/components/config/KeyedItemTable';
+import { useKeyedCrud } from '@/lib/hooks/useKeyedCrud';
 
 const TABS: TabDefinition[] = [
   { id: 'shaper', label: 'Shaper', configPath: ['traffic-policy', 'shaper'] },
@@ -21,48 +23,58 @@ interface Props {
   connection: VyosConnectionInfo;
 }
 
-function PolicyTable({ data, policyType }: { data: unknown; policyType: string }) {
-  const policies = data && typeof data === 'object' ? Object.entries(data as Record<string, unknown>) : [];
+const POLICY_COLUMNS: KeyedColumn[] = [
+  {
+    id: 'description',
+    header: 'Description',
+    accessor: (_key, val) => <span className="text-muted-foreground">{String(val.description || '')}</span>,
+  },
+  {
+    id: 'bandwidth',
+    header: 'Bandwidth',
+    width: '120px',
+    accessor: (_key, val) => <span className="font-mono text-sm">{String(val.bandwidth || '')}</span>,
+  },
+];
+
+const POLICY_FORM_FIELDS = [
+  { name: 'description', label: 'Description', type: 'text' as const },
+  { name: 'bandwidth', label: 'Bandwidth', type: 'text' as const },
+];
+
+function PolicyCrudTable({
+  data,
+  connection,
+  basePath,
+  policyType,
+}: {
+  data: unknown;
+  connection: VyosConnectionInfo;
+  basePath: string[];
+  policyType: string;
+}) {
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, basePath);
+  const tableData = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
 
   return (
-    <div className="rounded-md border border-border">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-border bg-muted/50">
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Name</th>
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Description</th>
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Bandwidth</th>
-          </tr>
-        </thead>
-        <tbody>
-          {policies.length === 0 ? (
-            <tr>
-              <td colSpan={3} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                No {policyType} policies configured
-              </td>
-            </tr>
-          ) : (
-            policies.map(([name, cfg]) => {
-              const policy = cfg as Record<string, unknown>;
-              return (
-                <tr key={name} className="border-b border-border hover:bg-muted/50">
-                  <td className="px-3 py-2 font-medium text-sm">{name}</td>
-                  <td className="px-3 py-2 text-sm text-muted-foreground">{String(policy.description || '')}</td>
-                  <td className="px-3 py-2 font-mono text-sm">{String(policy.bandwidth || '')}</td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
-    </div>
+    <KeyedItemTable
+      data={tableData}
+      columns={POLICY_COLUMNS}
+      emptyMessage={`No ${policyType} policies configured`}
+      addLabel={`Add ${policyType} Policy`}
+      formTitle={`${policyType} Policy`}
+      formFields={POLICY_FORM_FIELDS}
+      onAdd={addItem}
+      onEdit={updateItem}
+      onDelete={deleteItem}
+    />
   );
 }
 
 export function QosPanel({ connection }: Props) {
   return (
     <ConfigPanel
-      menuId="qos"
+      menuId="trafficpolicy"
       tabs={TABS}
       connection={connection}
       renderContent={(data, tab) => {
@@ -79,7 +91,14 @@ export function QosPanel({ connection }: Props) {
           limiter: 'Limiter',
           'network-emulator': 'Network Emulator',
         };
-        return <PolicyTable data={data} policyType={policyTypeMap[tab.id] || tab.label} />;
+        return (
+          <PolicyCrudTable
+            data={data}
+            connection={connection}
+            basePath={tab.configPath}
+            policyType={policyTypeMap[tab.id] || tab.label}
+          />
+        );
       }}
     />
   );
