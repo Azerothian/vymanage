@@ -2,6 +2,8 @@
 
 import type { VyosConnectionInfo } from '@vymanage/vyos-client';
 import { ConfigPanel, type TabDefinition } from '@/components/config/ConfigPanel';
+import { KeyedItemTable, type KeyedColumn } from '@/components/config/KeyedItemTable';
+import { useKeyedCrud } from '@/lib/hooks/useKeyedCrud';
 
 const TABS: TabDefinition[] = [
   { id: 'vrf-instances', label: 'VRF Instances', configPath: ['vrf', 'name'] },
@@ -11,42 +13,50 @@ interface Props {
   connection: VyosConnectionInfo;
 }
 
-function VrfTable({ data }: { data: unknown }) {
-  const vrfs = data && typeof data === 'object' ? Object.entries(data as Record<string, unknown>) : [];
+const VRF_COLUMNS: KeyedColumn[] = [
+  {
+    id: 'table',
+    header: 'Table ID',
+    width: '100px',
+    accessor: (_key, val) => <span>{String(val.table || '')}</span>,
+  },
+  {
+    id: 'description',
+    header: 'Description',
+    accessor: (_key, val) => <span className="text-muted-foreground">{String(val.description || '')}</span>,
+  },
+  {
+    id: 'protocols',
+    header: 'Protocols',
+    accessor: (_key, val) => {
+      const protocols = Object.keys((val.protocols as Record<string, unknown>) || {}).join(', ');
+      return <span>{protocols || '-'}</span>;
+    },
+  },
+];
+
+const VRF_FORM_FIELDS = [
+  { name: 'table', label: 'Table ID', type: 'text' as const },
+  { name: 'description', label: 'Description', type: 'text' as const },
+];
+
+function VrfCrudTable({ data, connection }: { data: unknown; connection: VyosConnectionInfo }) {
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, ['vrf', 'name']);
+  const tableData = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
 
   return (
-    <div className="rounded-md border border-border">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-border bg-muted/50">
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">VRF Name</th>
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Table ID</th>
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Description</th>
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Protocols</th>
-          </tr>
-        </thead>
-        <tbody>
-          {vrfs.length === 0 ? (
-            <tr>
-              <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">No VRF instances configured</td>
-            </tr>
-          ) : (
-            vrfs.map(([name, cfg]) => {
-              const vrf = cfg as Record<string, unknown>;
-              const protocols = Object.keys((vrf.protocols as Record<string, unknown>) || {}).join(', ');
-              return (
-                <tr key={name} className="border-b border-border hover:bg-muted/50">
-                  <td className="px-3 py-2 font-medium text-sm">{name}</td>
-                  <td className="px-3 py-2 text-sm">{String(vrf.table || '')}</td>
-                  <td className="px-3 py-2 text-sm text-muted-foreground">{String(vrf.description || '')}</td>
-                  <td className="px-3 py-2 text-sm">{protocols || '-'}</td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
-    </div>
+    <KeyedItemTable
+      data={tableData}
+      columns={VRF_COLUMNS}
+      keyHeader="VRF Name"
+      emptyMessage="No VRF instances configured"
+      addLabel="Add VRF"
+      formTitle="VRF Instance"
+      formFields={VRF_FORM_FIELDS}
+      onAdd={addItem}
+      onEdit={updateItem}
+      onDelete={deleteItem}
+    />
   );
 }
 
@@ -56,7 +66,7 @@ export function VrfPanel({ connection }: Props) {
       menuId="vrf"
       tabs={TABS}
       connection={connection}
-      renderContent={(data) => <VrfTable data={data} />}
+      renderContent={(data) => <VrfCrudTable data={data} connection={connection} />}
     />
   );
 }

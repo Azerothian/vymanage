@@ -3,6 +3,9 @@
 import type { VyosConnectionInfo } from '@vymanage/vyos-client';
 import { ConfigPanel, type TabDefinition } from '@/components/config/ConfigPanel';
 import { OperationalDataSection } from '@/components/config/OperationalDataSection';
+import { GenericConfigTab } from '@/components/config/GenericConfigTab';
+import { KeyedItemTable } from '@/components/config/KeyedItemTable';
+import { useKeyedCrud } from '@/lib/hooks/useKeyedCrud';
 
 const TABS: TabDefinition[] = [
   { id: 'dhcp', label: 'DHCP Server', configPath: ['service', 'dhcp-server'] },
@@ -31,55 +34,78 @@ const TABS: TabDefinition[] = [
   { id: 'console-server', label: 'Console Server', configPath: ['service', 'console-server'] },
 ];
 
+const DHCP_CRUD_BASE = ['service', 'dhcp-server', 'shared-network-name'];
+
+const DHCP_COLUMNS = [
+  {
+    id: 'subnet',
+    header: 'Subnet',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const subnets = Object.keys((value.subnet as Record<string, unknown>) || {});
+      return <span className="font-mono text-xs">{subnets.join(', ') || '-'}</span>;
+    },
+  },
+  {
+    id: 'default-router',
+    header: 'Router',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const subnets = Object.values((value.subnet as Record<string, unknown>) || {});
+      const router = subnets.length > 0
+        ? (subnets[0] as Record<string, unknown>)['default-router']
+        : undefined;
+      return <span className="font-mono text-xs">{router ? String(router) : '-'}</span>;
+    },
+  },
+  {
+    id: 'range',
+    header: 'Range',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const subnets = Object.values((value.subnet as Record<string, unknown>) || {});
+      if (subnets.length === 0) return <span className="text-muted-foreground">-</span>;
+      const ranges = Object.values(
+        ((subnets[0] as Record<string, unknown>).range as Record<string, unknown>) || {},
+      );
+      if (ranges.length === 0) return <span className="text-muted-foreground">-</span>;
+      const first = ranges[0] as Record<string, unknown>;
+      return (
+        <span className="font-mono text-xs">
+          {String(first.start || '')} – {String(first.stop || '')}
+        </span>
+      );
+    },
+  },
+];
+
+const DHCP_FORM_FIELDS = [
+  { name: 'subnet/start', label: 'Range Start', type: 'text' as const },
+  { name: 'subnet/stop', label: 'Range Stop', type: 'text' as const },
+  { name: 'subnet/default-router', label: 'Default Router', type: 'text' as const },
+];
+
 interface Props {
   connection: VyosConnectionInfo;
 }
 
 function DhcpContent({ data, connection }: { data: unknown; connection: VyosConnectionInfo }) {
-  const dhcp = data && typeof data === 'object' ? data as Record<string, unknown> : {};
-  const sharedNetworks = Object.entries((dhcp['shared-network-name'] as Record<string, unknown>) || {});
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, DHCP_CRUD_BASE);
+
+  const dhcp = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  const sharedNetworks = (dhcp['shared-network-name'] as Record<string, unknown>) || null;
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border border-border">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border bg-muted/50">
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Network Name</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Subnet</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Range Start</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Range Stop</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Router</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sharedNetworks.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">No DHCP shared networks configured</td>
-              </tr>
-            ) : (
-              sharedNetworks.map(([name, netCfg]) => {
-                const net = netCfg as Record<string, unknown>;
-                const subnets = Object.entries((net.subnet as Record<string, unknown>) || {});
-                return subnets.map(([subnet, subCfg]) => {
-                  const sub = subCfg as Record<string, unknown>;
-                  const ranges = Object.entries((sub.range as Record<string, unknown>) || {});
-                  const firstRange = ranges[0]?.[1] as Record<string, unknown> || {};
-                  return (
-                    <tr key={`${name}-${subnet}`} className="border-b border-border hover:bg-muted/50">
-                      <td className="px-3 py-2 text-sm font-medium">{name}</td>
-                      <td className="px-3 py-2 font-mono text-sm">{subnet}</td>
-                      <td className="px-3 py-2 font-mono text-sm">{String(firstRange.start || '')}</td>
-                      <td className="px-3 py-2 font-mono text-sm">{String(firstRange.stop || '')}</td>
-                      <td className="px-3 py-2 font-mono text-sm">{String((sub['default-router'] as string) || '')}</td>
-                    </tr>
-                  );
-                });
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <KeyedItemTable
+        data={sharedNetworks}
+        columns={DHCP_COLUMNS}
+        keyHeader="Network Name"
+        emptyMessage="No DHCP shared networks configured"
+        onAdd={(key, fields) => addItem(key, fields)}
+        onEdit={(key, fields) => updateItem(key, fields)}
+        onDelete={(key) => deleteItem(key)}
+        formFields={DHCP_FORM_FIELDS}
+        formTitle="DHCP Network"
+        addLabel="Add Network"
+      />
       <OperationalDataSection
         connection={connection}
         path={['dhcp', 'server', 'leases']}
@@ -99,9 +125,7 @@ export function ServicesPanel({ connection }: Props) {
       renderContent={(data, tab) => {
         if (tab.id === 'dhcp') return <DhcpContent data={data} connection={connection} />;
         return (
-          <pre className="max-h-96 overflow-auto rounded bg-muted/50 p-3 font-mono text-xs scrollbar-thin">
-            {data === undefined || data === null ? 'No configuration' : JSON.stringify(data, null, 2)}
-          </pre>
+          <GenericConfigTab data={data} connection={connection} basePath={tab.configPath} />
         );
       }}
     />

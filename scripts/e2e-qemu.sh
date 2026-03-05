@@ -149,6 +149,17 @@ npx playwright test --config=playwright.qemu.config.ts || {
     echo "WARNING: Web QEMU tests failed"
 }
 
+# --- Step 10b: Wait for API to recover before Electron tests ---
+echo "==> Waiting for VyOS API to stabilize before Electron tests..."
+for i in $(seq 1 60); do
+    if curl -sk --max-time 5 "https://127.0.0.1:${QEMU_HTTPS_PORT}/retrieve" \
+        --data-urlencode "data={\"op\":\"showConfig\",\"path\":[\"system\",\"host-name\"],\"key\":\"$API_KEY\"}" 2>/dev/null | grep -q "vyos-qemu"; then
+        echo "==> VyOS API is healthy"
+        break
+    fi
+    sleep 2
+done
+
 # --- Step 11: Run Electron Playwright tests ---
 echo "==> Running Electron Playwright QEMU tests..."
 cd "$ROOT_DIR/apps/electron"

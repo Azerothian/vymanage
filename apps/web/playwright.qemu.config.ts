@@ -18,7 +18,16 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
+      name: 'base-tests',
+      testDir: './e2e/qemu',
+      testIgnore: /config-examples\//,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'config-examples',
+      testDir: './e2e/qemu/config-examples',
+      dependencies: ['base-tests'],
+      timeout: 180_000,
       use: { ...devices['Desktop Chrome'] },
     },
   ],

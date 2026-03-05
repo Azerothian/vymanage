@@ -3,6 +3,9 @@
 import type { VyosConnectionInfo } from '@vymanage/vyos-client';
 import { ConfigPanel, type TabDefinition } from '@/components/config/ConfigPanel';
 import { OperationalDataSection } from '@/components/config/OperationalDataSection';
+import { GenericConfigTab } from '@/components/config/GenericConfigTab';
+import { KeyedItemTable } from '@/components/config/KeyedItemTable';
+import { useKeyedCrud } from '@/lib/hooks/useKeyedCrud';
 
 const TABS: TabDefinition[] = [
   { id: 'hostname', label: 'Hostname', configPath: ['system', 'host-name'] },
@@ -25,46 +28,70 @@ interface Props {
   connection: VyosConnectionInfo;
 }
 
-function UsersTable({ data }: { data: unknown }) {
-  const users = data && typeof data === 'object' ? Object.entries(data as Record<string, unknown>) : [];
+const USER_BASEPATH = ['system', 'login', 'user'];
+
+const USER_COLUMNS = [
+  {
+    id: 'full-name',
+    header: 'Full Name',
+    accessor: (_key: string, value: Record<string, unknown>) => (
+      <span className="text-sm text-muted-foreground">{String(value['full-name'] || '')}</span>
+    ),
+  },
+  {
+    id: 'level',
+    header: 'Level',
+    accessor: (_key: string, value: Record<string, unknown>) => (
+      <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${String(value.level) === 'admin' ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400' : 'bg-blue-500/20 text-blue-700 dark:text-blue-400'}`}>
+        {String(value.level || 'operator')}
+      </span>
+    ),
+  },
+  {
+    id: 'ssh-keys',
+    header: 'SSH Keys',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const auth = value['authentication'] as Record<string, unknown> | undefined;
+      const pubKeys = auth?.['public-keys'] as Record<string, unknown> | undefined;
+      const count = pubKeys ? Object.keys(pubKeys).length : 0;
+      return <span className="text-sm">{count > 0 ? `${count} key(s)` : 'None'}</span>;
+    },
+  },
+];
+
+const USER_FORM_FIELDS = [
+  { name: 'full-name', label: 'Full Name', type: 'text' as const },
+  {
+    name: 'level',
+    label: 'Level',
+    type: 'select' as const,
+    options: [
+      { value: 'admin', label: 'Admin' },
+      { value: 'operator', label: 'Operator' },
+    ],
+  },
+  { name: 'authentication/plaintext-password', label: 'Password', type: 'text' as const },
+];
+
+function UsersTable({ data, connection }: { data: unknown; connection: VyosConnectionInfo }) {
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, USER_BASEPATH);
+  const usersObj = data && typeof data === 'object' && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : null;
 
   return (
-    <div className="rounded-md border border-border">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-border bg-muted/50">
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Username</th>
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Full Name</th>
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Level</th>
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">SSH Keys</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.length === 0 ? (
-            <tr>
-              <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">No users configured</td>
-            </tr>
-          ) : (
-            users.map(([username, cfg]) => {
-              const user = cfg as Record<string, unknown>;
-              const sshKeys = Object.keys((user['authentication'] as Record<string, unknown> || {})?.['public-keys'] as Record<string, unknown> || {}).length;
-              return (
-                <tr key={username} className="border-b border-border hover:bg-muted/50">
-                  <td className="px-3 py-2 font-medium text-sm">{username}</td>
-                  <td className="px-3 py-2 text-sm text-muted-foreground">{String(user['full-name'] || '')}</td>
-                  <td className="px-3 py-2 text-sm">
-                    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${String(user.level) === 'admin' ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400' : 'bg-blue-500/20 text-blue-700 dark:text-blue-400'}`}>
-                      {String(user.level || 'operator')}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-sm">{sshKeys > 0 ? `${sshKeys} key(s)` : 'None'}</td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
-    </div>
+    <KeyedItemTable
+      data={usersObj}
+      columns={USER_COLUMNS}
+      keyHeader="Username"
+      emptyMessage="No users configured"
+      addLabel="Add User"
+      formFields={USER_FORM_FIELDS}
+      formTitle="User"
+      onAdd={(key, fields) => addItem(key, fields)}
+      onEdit={(key, fields) => updateItem(key, fields)}
+      onDelete={(key) => deleteItem(key)}
+    />
   );
 }
 
@@ -100,7 +127,7 @@ export function SystemPanel({ connection }: Props) {
       tabs={TABS}
       connection={connection}
       renderContent={(data, tab) => {
-        if (tab.id === 'users') return <UsersTable data={data} />;
+        if (tab.id === 'users') return <UsersTable data={data} connection={connection} />;
         if (tab.id === 'hostname') {
           return (
             <div className="space-y-4">
@@ -129,11 +156,7 @@ export function SystemPanel({ connection }: Props) {
             </div>
           );
         }
-        return (
-          <pre className="max-h-96 overflow-auto rounded bg-muted/50 p-3 font-mono text-xs scrollbar-thin">
-            {data === undefined || data === null ? 'No configuration' : JSON.stringify(data, null, 2)}
-          </pre>
-        );
+        return <GenericConfigTab data={data} connection={connection} basePath={tab.configPath} />;
       }}
     />
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { FileText } from 'lucide-react';
+import { FileText, FilePlus2 } from 'lucide-react';
 import type { VyosConnectionInfo } from '@vymanage/vyos-client';
 import { isElectron, getElectronAPI } from '@/lib/utils/electron';
 import {
@@ -19,11 +19,12 @@ import {
 interface ConnectionDialogProps {
   onConnect: (info: VyosConnectionInfo) => Promise<void>;
   onFileOpen: (config: Record<string, unknown>, fileName: string) => void;
+  onNewConfig?: () => void;
   error: string | null;
   isLoading: boolean;
 }
 
-export function ConnectionDialog({ onConnect, onFileOpen, error, isLoading }: ConnectionDialogProps) {
+export function ConnectionDialog({ onConnect, onFileOpen, onNewConfig, error, isLoading }: ConnectionDialogProps) {
   const [host, setHost] = useState('');
   const [key, setKey] = useState('');
   const [insecure, setInsecure] = useState(false);
@@ -208,6 +209,18 @@ export function ConnectionDialog({ onConnect, onFileOpen, error, isLoading }: Co
             <span className="bg-card px-2 text-muted-foreground">or</span>
           </div>
         </div>
+
+        {/* Create new config */}
+        {onNewConfig && (
+          <button
+            type="button"
+            onClick={onNewConfig}
+            className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-3 text-sm font-medium transition-colors hover:bg-muted"
+          >
+            <FilePlus2 className="h-4 w-4" />
+            Create New Config
+          </button>
+        )}
 
         {/* File open section */}
         <div className="space-y-2">

@@ -1,0 +1,11 @@
+{
+  "system": {
+    "host-name": "test"
+  },
+  "firewall": {
+    "global-options": {
+      "all-ping": "enable",
+      "broadcast-ping": "enable"
+    }
+  }
+}

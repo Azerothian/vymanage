@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { VyosConnectionInfo } from '@vymanage/vyos-client';
 import { getStorageItem, setStorageItem } from '@/lib/utils/storage';
+import { useTabSelection } from '@/lib/hooks/useTabSelection';
 import { NatRuleTab } from './NatRuleTab';
 import type { NatFamily } from './types';
 
@@ -30,6 +31,11 @@ export function NatPanel({ connection }: NatPanelProps) {
   useEffect(() => {
     setStorageItem(STORAGE_KEY, activeTab);
   }, [activeTab]);
+
+  useTabSelection('nat', useCallback((tabId: string) => {
+    const match = TABS.find((t) => t.id === tabId);
+    if (match) setActiveTab(match.id);
+  }, []));
 
   return (
     <div className="flex h-full flex-col">

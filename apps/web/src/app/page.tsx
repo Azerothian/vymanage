@@ -60,6 +60,10 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function handleNewConfig() {
+    handleFileOpen({}, 'new-config.json');
+  }
+
   function handleFileClose() {
     setConfigStore(null);
     setFileConnection(null);
@@ -122,6 +126,7 @@ export default function Home() {
         <ConnectionDialog
           onConnect={connect}
           onFileOpen={handleFileOpen}
+          onNewConfig={handleNewConfig}
           error={error}
           isLoading={isLoading}
         />

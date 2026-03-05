@@ -11,6 +11,7 @@
 
 import { test, expect } from '@playwright/test';
 import { FULL_MOCK_CONFIG } from './fixtures/mock-config';
+import { navigateToPanel } from './fixtures/helpers';
 
 // Serialised JSON content of the fake config file used throughout these tests
 const FAKE_CONFIG_JSON = JSON.stringify(FULL_MOCK_CONFIG, null, 2);
@@ -208,6 +209,27 @@ test.describe('File Mode', () => {
         // The downloaded config should contain the interfaces section from FULL_MOCK_CONFIG
         expect(parsed).toHaveProperty('interfaces');
       }
+    });
+  });
+
+  test.describe('Create New Config', () => {
+    test('connection dialog has a "Create New Config" button', async ({ page }) => {
+      await expect(
+        page.getByRole('button', { name: /create new config/i }),
+      ).toBeVisible({ timeout: 5000 });
+    });
+
+    test('clicking Create New Config enters file mode with new-config.json', async ({ page }) => {
+      await page.getByRole('button', { name: /create new config/i }).click();
+      await expect(page.getByText(/new-config\.json/i)).toBeVisible({ timeout: 8000 });
+    });
+
+    test('navigating to a panel after creating new config shows empty state', async ({ page }) => {
+      await page.getByRole('button', { name: /create new config/i }).click();
+      await expect(page.getByText(/new-config\.json/i)).toBeVisible({ timeout: 8000 });
+      await navigateToPanel(page, 'Firewall');
+      // Firewall panel renders without errors and shows empty rule set message
+      await expect(page.getByText(/select or create/i)).toBeVisible({ timeout: 8000 });
     });
   });
 

@@ -3,6 +3,9 @@
 import type { VyosConnectionInfo } from '@vymanage/vyos-client';
 import { ConfigPanel, type TabDefinition } from '@/components/config/ConfigPanel';
 import { OperationalDataSection } from '@/components/config/OperationalDataSection';
+import { GenericConfigTab } from '@/components/config/GenericConfigTab';
+import { KeyedItemTable } from '@/components/config/KeyedItemTable';
+import { useKeyedCrud } from '@/lib/hooks/useKeyedCrud';
 
 const TABS: TabDefinition[] = [
   { id: 'ipsec-s2s', label: 'IPsec S2S', configPath: ['vpn', 'ipsec', 'site-to-site'], pollInterval: 10000 },
@@ -20,46 +23,134 @@ interface Props {
   connection: VyosConnectionInfo;
 }
 
+const IKE_COLUMNS = [
+  {
+    id: 'proposals',
+    header: 'Proposals',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const proposals = value.proposal as Record<string, unknown> | undefined;
+      if (!proposals) return <span className="text-muted-foreground">-</span>;
+      return <span className="font-mono text-xs">{Object.keys(proposals).join(', ')}</span>;
+    },
+  },
+  {
+    id: 'lifetime',
+    header: 'Lifetime',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const lifetime = value.lifetime;
+      if (lifetime === undefined || lifetime === null) return <span className="text-muted-foreground">-</span>;
+      return <span className="font-mono text-xs">{String(lifetime)}</span>;
+    },
+  },
+  {
+    id: 'dh-group',
+    header: 'DH Group',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const proposal = value.proposal as Record<string, unknown> | undefined;
+      if (!proposal) return <span className="text-muted-foreground">-</span>;
+      const firstProposal = Object.values(proposal)[0] as Record<string, unknown> | undefined;
+      const dhGroup = firstProposal?.['dh-group'];
+      if (dhGroup === undefined || dhGroup === null) return <span className="text-muted-foreground">-</span>;
+      return <span className="font-mono text-xs">{String(dhGroup)}</span>;
+    },
+  },
+];
+
+const ESP_COLUMNS = [
+  {
+    id: 'proposals',
+    header: 'Proposals',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const proposals = value.proposal as Record<string, unknown> | undefined;
+      if (!proposals) return <span className="text-muted-foreground">-</span>;
+      return <span className="font-mono text-xs">{Object.keys(proposals).join(', ')}</span>;
+    },
+  },
+  {
+    id: 'lifetime',
+    header: 'Lifetime',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const lifetime = value.lifetime;
+      if (lifetime === undefined || lifetime === null) return <span className="text-muted-foreground">-</span>;
+      return <span className="font-mono text-xs">{String(lifetime)}</span>;
+    },
+  },
+];
+
+const S2S_COLUMNS = [
+  {
+    id: 'auth',
+    header: 'Auth',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const auth = value.authentication as Record<string, unknown> | undefined;
+      if (!auth) return <span className="text-muted-foreground">-</span>;
+      return <span className="text-xs">{String(auth.mode || '')}</span>;
+    },
+  },
+  {
+    id: 'ike-group',
+    header: 'IKE Group',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const g = value['ike-group'];
+      if (g === undefined || g === null) return <span className="text-muted-foreground">-</span>;
+      return <span className="font-mono text-xs">{String(g)}</span>;
+    },
+  },
+  {
+    id: 'esp-group',
+    header: 'ESP Group',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const vti = value.vti as Record<string, unknown> | undefined;
+      const g = value['default-esp-group'] ?? vti?.['esp-group'];
+      if (g === undefined || g === null) return <span className="text-muted-foreground">-</span>;
+      return <span className="font-mono text-xs">{String(g)}</span>;
+    },
+  },
+  {
+    id: 'local-address',
+    header: 'Local Addr',
+    accessor: (_key: string, value: Record<string, unknown>) => {
+      const addr = value['local-address'];
+      if (addr === undefined || addr === null) return <span className="text-muted-foreground">-</span>;
+      return <span className="font-mono text-xs">{String(addr)}</span>;
+    },
+  },
+];
+
+const S2S_FORM_FIELDS = [
+  { name: 'authentication/mode', label: 'Auth Mode', type: 'text' as const },
+  { name: 'ike-group', label: 'IKE Group', type: 'text' as const },
+  { name: 'default-esp-group', label: 'ESP Group', type: 'text' as const },
+  { name: 'local-address', label: 'Local Address', type: 'text' as const },
+];
+
+const IKE_FORM_FIELDS = [
+  { name: 'lifetime', label: 'Lifetime', type: 'text' as const },
+];
+
+const ESP_FORM_FIELDS = [
+  { name: 'lifetime', label: 'Lifetime', type: 'text' as const },
+];
+
 function IpsecS2SContent({ data, connection }: { data: unknown; connection: VyosConnectionInfo }) {
-  const peers = data && typeof data === 'object' ? Object.entries(data as Record<string, unknown>) : [];
+  const basePath = ['vpn', 'ipsec', 'site-to-site'];
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, basePath);
+  const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border border-border">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border bg-muted/50">
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Peer</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Auth</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">IKE Group</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">ESP Group</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Local Addr</th>
-            </tr>
-          </thead>
-          <tbody>
-            {peers.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">No IPsec site-to-site peers configured</td>
-              </tr>
-            ) : (
-              peers.map(([peer, cfg]) => {
-                const peerCfg = cfg as Record<string, unknown>;
-                const auth = peerCfg.authentication as Record<string, unknown> || {};
-                const vti = peerCfg.vti as Record<string, unknown> || {};
-                return (
-                  <tr key={peer} className="border-b border-border hover:bg-muted/50">
-                    <td className="px-3 py-2 font-mono text-sm">{peer}</td>
-                    <td className="px-3 py-2 text-sm">{String(auth.mode || '')}</td>
-                    <td className="px-3 py-2 text-sm">{String(peerCfg['ike-group'] || '')}</td>
-                    <td className="px-3 py-2 text-sm">{String(peerCfg['default-esp-group'] || (vti as Record<string, unknown>)['esp-group'] || '')}</td>
-                    <td className="px-3 py-2 font-mono text-sm">{String(peerCfg['local-address'] || '')}</td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <KeyedItemTable
+        data={obj}
+        columns={S2S_COLUMNS}
+        keyHeader="Peer"
+        emptyMessage="No IPsec site-to-site peers configured"
+        formFields={S2S_FORM_FIELDS}
+        formTitle="Peer"
+        addLabel="Add Peer"
+        onAdd={(key, fields) => addItem(key, fields)}
+        onEdit={(key, fields) => updateItem(key, fields)}
+        onDelete={(key) => deleteItem(key)}
+      />
       <OperationalDataSection
         connection={connection}
         path={['vpn', 'ipsec', 'sa']}
@@ -67,6 +158,48 @@ function IpsecS2SContent({ data, connection }: { data: unknown; connection: Vyos
         title="IPsec SA Status"
       />
     </div>
+  );
+}
+
+function IkeGroupsContent({ data, connection }: { data: unknown; connection: VyosConnectionInfo }) {
+  const basePath = ['vpn', 'ipsec', 'ike-group'];
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, basePath);
+  const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
+
+  return (
+    <KeyedItemTable
+      data={obj}
+      columns={IKE_COLUMNS}
+      keyHeader="Name"
+      emptyMessage="No IKE groups configured"
+      formFields={IKE_FORM_FIELDS}
+      formTitle="IKE Group"
+      addLabel="Add IKE Group"
+      onAdd={(key, fields) => addItem(key, fields)}
+      onEdit={(key, fields) => updateItem(key, fields)}
+      onDelete={(key) => deleteItem(key)}
+    />
+  );
+}
+
+function EspGroupsContent({ data, connection }: { data: unknown; connection: VyosConnectionInfo }) {
+  const basePath = ['vpn', 'ipsec', 'esp-group'];
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, basePath);
+  const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
+
+  return (
+    <KeyedItemTable
+      data={obj}
+      columns={ESP_COLUMNS}
+      keyHeader="Name"
+      emptyMessage="No ESP groups configured"
+      formFields={ESP_FORM_FIELDS}
+      formTitle="ESP Group"
+      addLabel="Add ESP Group"
+      onAdd={(key, fields) => addItem(key, fields)}
+      onEdit={(key, fields) => updateItem(key, fields)}
+      onDelete={(key) => deleteItem(key)}
+    />
   );
 }
 
@@ -78,11 +211,9 @@ export function VpnPanel({ connection }: Props) {
       connection={connection}
       renderContent={(data, tab) => {
         if (tab.id === 'ipsec-s2s') return <IpsecS2SContent data={data} connection={connection} />;
-        return (
-          <pre className="max-h-96 overflow-auto rounded bg-muted/50 p-3 font-mono text-xs scrollbar-thin">
-            {data === undefined || data === null ? 'No configuration' : JSON.stringify(data, null, 2)}
-          </pre>
-        );
+        if (tab.id === 'ike-groups') return <IkeGroupsContent data={data} connection={connection} />;
+        if (tab.id === 'esp-groups') return <EspGroupsContent data={data} connection={connection} />;
+        return <GenericConfigTab data={data} connection={connection} basePath={tab.configPath} />;
       }}
     />
   );

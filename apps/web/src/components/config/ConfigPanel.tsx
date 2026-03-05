@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import type { VyosConnectionInfo } from '@vymanage/vyos-client';
 import { getStorageItem, setStorageItem } from '@/lib/utils/storage';
 import { useClient } from '@/lib/context/ClientContext';
+import { useTabSelection } from '@/lib/hooks/useTabSelection';
+import { EmptyConfigState } from './EmptyConfigState';
 
 export interface TabDefinition {
   id: string;
@@ -45,6 +47,11 @@ export function ConfigPanel({ menuId, tabs, connection, renderContent, children 
   const handleTabChange = useCallback((tabId: string) => {
     setActiveTabId(tabId);
   }, []);
+
+  useTabSelection(menuId, useCallback((tabId: string) => {
+    const match = tabs.find((t) => t.id === tabId);
+    if (match) setActiveTabId(tabId);
+  }, [tabs]));
 
   if (tabs.length === 0) {
     return <div className="p-4">{children}</div>;
@@ -88,9 +95,13 @@ export function ConfigPanel({ menuId, tabs, connection, renderContent, children 
           </div>
         )}
 
-        {!isLoading && !error && data !== undefined && (
+        {!isLoading && !error && (
           <>
-            {renderContent ? renderContent(data, activeTab) : children}
+            {data === undefined || data === null ? (
+              <EmptyConfigState configPath={activeTab.configPath} />
+            ) : (
+              renderContent ? renderContent(data, activeTab) : children
+            )}
           </>
         )}
       </div>

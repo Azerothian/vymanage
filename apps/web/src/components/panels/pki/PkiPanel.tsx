@@ -2,6 +2,9 @@
 
 import type { VyosConnectionInfo } from '@vymanage/vyos-client';
 import { ConfigPanel, type TabDefinition } from '@/components/config/ConfigPanel';
+import { KeyedItemTable, type KeyedColumn } from '@/components/config/KeyedItemTable';
+import { GenericConfigTab } from '@/components/config/GenericConfigTab';
+import { useKeyedCrud } from '@/lib/hooks/useKeyedCrud';
 
 const TABS: TabDefinition[] = [
   { id: 'ca', label: 'CA', configPath: ['pki', 'ca'] },
@@ -14,82 +17,156 @@ interface Props {
   connection: VyosConnectionInfo;
 }
 
-function CertTable({ data, kind }: { data: unknown; kind: string }) {
-  const entries = data && typeof data === 'object' ? Object.entries(data as Record<string, unknown>) : [];
+const CERT_COLUMNS: KeyedColumn[] = [
+  {
+    id: 'description',
+    header: 'Description',
+    accessor: (_key, val) => <span className="text-muted-foreground">{String(val.description || '')}</span>,
+  },
+  {
+    id: 'private-key',
+    header: 'Has Private Key',
+    width: '120px',
+    accessor: (_key, val) => {
+      const has = !!(val['private'] || val['private-key']);
+      return has ? (
+        <span className="rounded bg-green-500/20 px-1.5 py-0.5 text-xs text-green-700 dark:text-green-400">Yes</span>
+      ) : (
+        <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">No</span>
+      );
+    },
+  },
+];
+
+const CERT_FORM_FIELDS = [
+  { name: 'certificate', label: 'Certificate (PEM)', type: 'textarea' as const },
+  { name: 'description', label: 'Description', type: 'text' as const },
+  { name: 'private/key', label: 'Private Key (PEM)', type: 'textarea' as const },
+];
+
+const KEY_PAIR_COLUMNS: KeyedColumn[] = [
+  {
+    id: 'public-key',
+    header: 'Has Public Key',
+    width: '120px',
+    accessor: (_key, val) => {
+      const has = !!(val['public'] || val['public-key']);
+      return has ? (
+        <span className="rounded bg-green-500/20 px-1.5 py-0.5 text-xs text-green-700 dark:text-green-400">Yes</span>
+      ) : (
+        <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">No</span>
+      );
+    },
+  },
+  {
+    id: 'private-key',
+    header: 'Has Private Key',
+    width: '120px',
+    accessor: (_key, val) => {
+      const has = !!(val['private'] || val['private-key']);
+      return has ? (
+        <span className="rounded bg-green-500/20 px-1.5 py-0.5 text-xs text-green-700 dark:text-green-400">Yes</span>
+      ) : (
+        <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">No</span>
+      );
+    },
+  },
+];
+
+const KEY_PAIR_FORM_FIELDS = [
+  { name: 'public/key', label: 'Public Key (PEM)', type: 'textarea' as const },
+  { name: 'private/key', label: 'Private Key (PEM)', type: 'textarea' as const },
+];
+
+const DH_COLUMNS: KeyedColumn[] = [
+  {
+    id: 'description',
+    header: 'Description',
+    accessor: (_key, val) => <span className="text-muted-foreground">{String(val.description || '')}</span>,
+  },
+];
+
+const DH_FORM_FIELDS = [
+  { name: 'parameters', label: 'Parameters (PEM)', type: 'textarea' as const },
+  { name: 'description', label: 'Description', type: 'text' as const },
+];
+
+function CertCrudTable({
+  data,
+  connection,
+  basePath,
+  kind,
+}: {
+  data: unknown;
+  connection: VyosConnectionInfo;
+  basePath: string[];
+  kind: string;
+}) {
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, basePath);
+  const tableData = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
 
   return (
-    <div className="rounded-md border border-border">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-border bg-muted/50">
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Name</th>
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Description</th>
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Has Private Key</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.length === 0 ? (
-            <tr>
-              <td colSpan={3} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                No {kind} configured
-              </td>
-            </tr>
-          ) : (
-            entries.map(([name, cfg]) => {
-              const cert = cfg as Record<string, unknown>;
-              const hasPrivKey = !!(cert['private'] || cert['private-key']);
-              return (
-                <tr key={name} className="border-b border-border hover:bg-muted/50">
-                  <td className="px-3 py-2 font-medium text-sm">{name}</td>
-                  <td className="px-3 py-2 text-sm text-muted-foreground">{String(cert.description || '')}</td>
-                  <td className="px-3 py-2 text-sm">
-                    {hasPrivKey ? (
-                      <span className="rounded bg-green-500/20 px-1.5 py-0.5 text-xs text-green-700 dark:text-green-400">Yes</span>
-                    ) : (
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">No</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
-    </div>
+    <KeyedItemTable
+      data={tableData}
+      columns={CERT_COLUMNS}
+      emptyMessage={`No ${kind} configured`}
+      addLabel={`Add ${kind}`}
+      formTitle={kind}
+      formFields={CERT_FORM_FIELDS}
+      onAdd={addItem}
+      onEdit={updateItem}
+      onDelete={deleteItem}
+    />
   );
 }
 
-function DhTable({ data }: { data: unknown }) {
-  const entries = data && typeof data === 'object' ? Object.entries(data as Record<string, unknown>) : [];
+function KeyPairCrudTable({
+  data,
+  connection,
+}: {
+  data: unknown;
+  connection: VyosConnectionInfo;
+}) {
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, ['pki', 'key-pair']);
+  const tableData = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
 
   return (
-    <div className="rounded-md border border-border">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-border bg-muted/50">
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Name</th>
-            <th className="px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground">Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.length === 0 ? (
-            <tr>
-              <td colSpan={2} className="px-4 py-8 text-center text-sm text-muted-foreground">No DH parameters configured</td>
-            </tr>
-          ) : (
-            entries.map(([name, cfg]) => {
-              const dh = cfg as Record<string, unknown>;
-              return (
-                <tr key={name} className="border-b border-border hover:bg-muted/50">
-                  <td className="px-3 py-2 font-medium text-sm">{name}</td>
-                  <td className="px-3 py-2 text-sm text-muted-foreground">{String(dh.description || '')}</td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
-    </div>
+    <KeyedItemTable
+      data={tableData}
+      columns={KEY_PAIR_COLUMNS}
+      emptyMessage="No key pairs configured"
+      addLabel="Add Key Pair"
+      formTitle="Key Pair"
+      formFields={KEY_PAIR_FORM_FIELDS}
+      onAdd={addItem}
+      onEdit={updateItem}
+      onDelete={deleteItem}
+    />
+  );
+}
+
+function DhCrudTable({
+  data,
+  connection,
+}: {
+  data: unknown;
+  connection: VyosConnectionInfo;
+}) {
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, ['pki', 'dh']);
+  const tableData = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
+
+  return (
+    <KeyedItemTable
+      data={tableData}
+      columns={DH_COLUMNS}
+      emptyMessage="No DH parameters configured"
+      addLabel="Add DH Parameters"
+      formTitle="DH Parameters"
+      formFields={DH_FORM_FIELDS}
+      onAdd={addItem}
+      onEdit={updateItem}
+      onDelete={deleteItem}
+    />
   );
 }
 
@@ -100,14 +177,28 @@ export function PkiPanel({ connection }: Props) {
       tabs={TABS}
       connection={connection}
       renderContent={(data, tab) => {
-        if (tab.id === 'ca') return <CertTable data={data} kind="Certificate Authorities" />;
-        if (tab.id === 'certificates') return <CertTable data={data} kind="Certificates" />;
-        if (tab.id === 'key-pairs') return <CertTable data={data} kind="Key Pairs" />;
-        if (tab.id === 'dh') return <DhTable data={data} />;
+        if (tab.id === 'ca')
+          return (
+            <CertCrudTable
+              data={data}
+              connection={connection}
+              basePath={['pki', 'ca']}
+              kind="Certificate Authorities"
+            />
+          );
+        if (tab.id === 'certificates')
+          return (
+            <CertCrudTable
+              data={data}
+              connection={connection}
+              basePath={['pki', 'certificate']}
+              kind="Certificates"
+            />
+          );
+        if (tab.id === 'key-pairs') return <KeyPairCrudTable data={data} connection={connection} />;
+        if (tab.id === 'dh') return <DhCrudTable data={data} connection={connection} />;
         return (
-          <pre className="max-h-96 overflow-auto rounded bg-muted/50 p-3 font-mono text-xs scrollbar-thin">
-            {data === undefined || data === null ? 'No configuration' : JSON.stringify(data, null, 2)}
-          </pre>
+          <GenericConfigTab data={data} connection={connection} basePath={tab.configPath} />
         );
       }}
     />

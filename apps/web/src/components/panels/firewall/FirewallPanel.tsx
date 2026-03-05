@@ -1,11 +1,15 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { VyosConnectionInfo } from '@vymanage/vyos-client';
 import { useConfigActions } from '@/lib/hooks/useConfig';
 import { useClient } from '@/lib/context/ClientContext';
 import { getStorageItem, setStorageItem } from '@/lib/utils/storage';
+import { useTabSelection } from '@/lib/hooks/useTabSelection';
+import { KeyedItemTable } from '@/components/config/KeyedItemTable';
+import { EmptyConfigState } from '@/components/config/EmptyConfigState';
+import { useKeyedCrud } from '@/lib/hooks/useKeyedCrud';
 import { RuleSetTab } from './RuleSetTab';
 import { GroupsTab } from './GroupsTab';
 import { ZonesTab } from './ZonesTab';
@@ -86,6 +90,61 @@ function GlobalOptionsTab({ connection }: { connection: VyosConnectionInfo }) {
   );
 }
 
+function FlowTablesTab({ connection }: { connection: VyosConnectionInfo }) {
+  const FLOW_PATH = ['firewall', 'flowtable'];
+  const client = useClient(connection);
+  const { addItem, updateItem, deleteItem } = useKeyedCrud(connection, FLOW_PATH);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['config', connection.host, ...FLOW_PATH],
+    queryFn: () => client!.showConfig(FLOW_PATH),
+    enabled: !!client,
+  });
+
+  if (isLoading) {
+    return <div className="py-8 text-center text-sm text-muted-foreground">Loading...</div>;
+  }
+
+  if (data === undefined || data === null) {
+    return <EmptyConfigState configPath={FLOW_PATH} />;
+  }
+
+  return (
+    <KeyedItemTable
+      data={data as Record<string, unknown>}
+      columns={[
+        {
+          id: 'interface',
+          header: 'Interfaces',
+          accessor: (_k, v) => {
+            const ifaces = v.interface;
+            if (Array.isArray(ifaces)) return (ifaces as string[]).join(', ');
+            if (ifaces && typeof ifaces === 'object') return Object.keys(ifaces).join(', ');
+            return String(ifaces || '-');
+          },
+        },
+        {
+          id: 'offload',
+          header: 'Offload',
+          accessor: (_k, v) => String(v.offload || '-'),
+          width: '100px',
+        },
+      ]}
+      keyHeader="Flow Table"
+      emptyMessage="No flow tables configured"
+      onAdd={(key, fields) => addItem(key, fields)}
+      onEdit={(key, fields) => updateItem(key, fields)}
+      onDelete={(key) => deleteItem(key)}
+      addLabel="Add Flow Table"
+      formFields={[
+        { name: 'interface', label: 'Interfaces', type: 'text', placeholder: 'eth0, eth1' },
+        { name: 'offload', label: 'Offload', type: 'select', options: [{ label: 'Hardware', value: 'hardware' }, { label: 'Software', value: 'software' }] },
+      ]}
+      formTitle="Flow Table"
+    />
+  );
+}
+
 export function FirewallPanel({ connection }: FirewallPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>(
     () => getStorageItem(STORAGE_KEY, 'ipv4') as TabId,
@@ -94,6 +153,11 @@ export function FirewallPanel({ connection }: FirewallPanelProps) {
   useEffect(() => {
     setStorageItem(STORAGE_KEY, activeTab);
   }, [activeTab]);
+
+  useTabSelection('firewall', useCallback((tabId: string) => {
+    const match = TABS.find((t) => t.id === tabId);
+    if (match) setActiveTab(match.id);
+  }, []));
 
   return (
     <div className="flex h-full flex-col">
@@ -121,11 +185,7 @@ export function FirewallPanel({ connection }: FirewallPanelProps) {
         {activeTab === 'bridge' && <RuleSetTab family="bridge" connection={connection} />}
         {activeTab === 'groups' && <GroupsTab connection={connection} />}
         {activeTab === 'zones' && <ZonesTab connection={connection} />}
-        {activeTab === 'flowtables' && (
-          <div className="text-sm text-muted-foreground py-8 text-center">
-            Flow tables configuration coming soon
-          </div>
-        )}
+        {activeTab === 'flowtables' && <FlowTablesTab connection={connection} />}
         {activeTab === 'global' && <GlobalOptionsTab connection={connection} />}
       </div>
     </div>

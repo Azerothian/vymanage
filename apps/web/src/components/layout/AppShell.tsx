@@ -15,6 +15,8 @@ import { Taskbar } from './Taskbar';
 import { renderPanel } from '../panels/PanelRegistry';
 import { menuItems } from '../../lib/config/menu';
 import type { MenuItem } from '../../lib/config/menu';
+import { setStorageItem } from '../../lib/utils/storage';
+import { dispatchTabSelect } from '../../lib/hooks/useTabSelection';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,10 +38,14 @@ function WorkspaceContent({ connection }: { connection: VyosConnectionInfo }) {
   const workspace = useWorkspace();
 
   const handleSelectItem = useCallback(
-    (item: MenuItem, _tabId?: string) => {
+    (item: MenuItem, tabId?: string) => {
       const menuItem = menuItems.find((m) => m.id === item.id) ?? item;
-      // tabId is available for panels that support initial tab selection;
-      // panels manage their own active tab via localStorage persistence
+      // Set initial tab if specified
+      if (tabId) {
+        setStorageItem(`vymanage:active-tab:${menuItem.id}`, tabId);
+        // Dispatch event for already-mounted panels
+        setTimeout(() => dispatchTabSelect(menuItem.id, tabId), 0);
+      }
       switch (workspace.mode) {
         case 'desktop':
           workspace.openWindow(menuItem.id, menuItem.label, menuItem.icon);

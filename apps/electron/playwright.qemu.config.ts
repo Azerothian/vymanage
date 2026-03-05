@@ -11,4 +11,17 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: [['list']],
+  projects: [
+    {
+      name: 'base-tests',
+      testDir: './e2e/qemu',
+      testIgnore: /config-examples\//,
+    },
+    {
+      name: 'config-examples',
+      testDir: './e2e/qemu/config-examples',
+      dependencies: ['base-tests'],
+      timeout: 180_000,
+    },
+  ],
 });
